@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:micathon/screens/childhome5.dart';
-import 'package:micathon/screens/child_activity6.dart';
-import 'package:micathon/screens/child_view_of_family_tree7.dart';
-import 'package:micathon/screens/settings_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:micathon/models/money.dart';
+import 'package:micathon/models/profile.dart';
+import 'package:micathon/state/family_providers.dart';
+import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/widgets/avatar_utils.dart';
 
-// void main() {
-//   runApp(const SendMoneyApp());
-// }
-
-// Color palette consistent with previous screens
 class AppColors {
   static const Color background = Color(0xFFFAF9F6);
   static const Color primary = Color(0xFF00502C);
@@ -24,44 +21,38 @@ class AppColors {
   static const Color onSecondaryContainer = Color(0xFF4A6A53);
   static const Color onSurface = Color(0xFF1A1C1A);
   static const Color onSurfaceVariant = Color(0xFF3F4941);
+  static const Color error = Color(0xFFBA1A1A);
 }
 
-class SendMoneyApp extends StatelessWidget {
-  const SendMoneyApp({super.key});
+/// Send money flow.
+///
+/// Pass [initialRecipient] when invoked from a profile screen (e.g.
+/// `ViewFamilyMemberChild`). When null, the user picks from a family list.
+class SendMoneyScreen extends ConsumerStatefulWidget {
+  const SendMoneyScreen({super.key, this.initialRecipient});
+
+  final Profile? initialRecipient;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Send Money',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.background,
-        fontFamily: 'Manrope',
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
-        useMaterial3: true,
-      ),
-      home: const SendMoneyScreen(),
-    );
-  }
+  ConsumerState<SendMoneyScreen> createState() => _SendMoneyScreenState();
 }
 
-class SendMoneyScreen extends StatefulWidget {
-  const SendMoneyScreen({super.key});
-
-  @override
-  State<SendMoneyScreen> createState() => _SendMoneyScreenState();
-}
-
-class _SendMoneyScreenState extends State<SendMoneyScreen> {
+class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
   final TextEditingController _amountController = TextEditingController();
   final FocusNode _amountFocusNode = FocusNode();
+
+  Profile? _recipient;
+  bool _busy = false;
+  String? _amountError;
 
   @override
   void initState() {
     super.initState();
-    // Auto-focus the amount field when the screen opens
+    _recipient = widget.initialRecipient;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _amountFocusNode.requestFocus();
+      if (_recipient != null) {
+        _amountFocusNode.requestFocus();
+      }
     });
   }
 
@@ -74,13 +65,119 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
 
   void _addQuickAmount(int amount) {
     setState(() {
-      // Simple logic to replace or add to the current amount
       _amountController.text = amount.toString();
-      // Move cursor to the end
       _amountController.selection = TextSelection.fromPosition(
         TextPosition(offset: _amountController.text.length),
       );
+      _amountError = null;
     });
+  }
+
+  Future<void> _submit() async {
+    final me = ref.read(myProfileProvider).asData?.value;
+    final recipient = _recipient;
+    if (me == null) return;
+    if (recipient == null) {
+      setState(() => _amountError = 'Pick a recipient first.');
+      return;
+    }
+    final amount = Money.parseMajorToMinor(_amountController.text);
+    if (amount == null) {
+      setState(() => _amountError = 'Enter a positive amount (e.g. 250 or 250.00).');
+      return;
+    }
+    if (amount > me.balanceMinor) {
+      setState(() => _amountError =
+          'Insufficient balance. You have ${Money.format(me.balanceMinor)}.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _amountError = null;
+    });
+    try {
+      await ref.read(transactionsRepositoryProvider).transferMoney(
+            receiverId: recipient.id,
+            amountMinor: amount,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+            content: Text(
+              'Sent ${Money.format(amount)} to ${recipient.fullName}.',
+            ),
+          ),
+        );
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _amountError = _describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickRecipient(BuildContext context) async {
+    final me = ref.read(myProfileProvider).asData?.value;
+    final family = ref.read(familyMembersProvider).asData?.value ??
+        const <Profile>[];
+    final candidates = family.where((p) => p.id != me?.id).toList();
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('No other family members yet.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      return;
+    }
+    final picked = await showModalBottomSheet<Profile>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text('Pick a recipient',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onSurface,
+                    )),
+              ),
+              for (final p in candidates)
+                ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AvatarUtils.colorFor(p.id),
+                    child: Text(
+                      AvatarUtils.initial(p.fullName),
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  title: Text(p.fullName),
+                  subtitle: Text(p.role.name),
+                  onTap: () => Navigator.of(ctx).pop(p),
+                ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _recipient = picked);
+      _amountFocusNode.requestFocus();
+    }
   }
 
   @override
@@ -94,17 +191,28 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24.0, vertical: 24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _buildRecipientPill(),
                     const SizedBox(height: 48),
                     _buildAmountInput(),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
+                    if (_amountError != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16),
+                        child: Text(
+                          _amountError!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: AppColors.error, fontSize: 13),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
                     _buildQuickAmountChips(),
-                    const SizedBox(height: 48),
-                    _buildNoteInput(),
                   ],
                 ),
               ),
@@ -113,7 +221,6 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -139,51 +246,63 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
   }
 
   Widget _buildRecipientPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'To:',
-            style: TextStyle(
-              color: AppColors.onSurfaceVariant,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 24,
-            height: 24,
-            decoration: const BoxDecoration(
-              color: Color(0xFF46654F),
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'D', // Initial for Dad
+    final r = _recipient;
+    return InkWell(
+      borderRadius: BorderRadius.circular(100),
+      onTap: () => _pickRecipient(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerHighest.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'To:',
               style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
+                color: AppColors.onSurfaceVariant,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          const Text(
-            'Dad',
-            style: TextStyle(
-              color: AppColors.onSurface,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            if (r != null) ...[
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: AvatarUtils.colorFor(r.id),
+                child: Text(
+                  AvatarUtils.initial(r.fullName),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                r.fullName,
+                style: const TextStyle(
+                  color: AppColors.onSurface,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.unfold_more,
+                  color: AppColors.onSurfaceVariant, size: 16),
+            ] else
+              const Text(
+                'Pick recipient',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -207,7 +326,7 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
             focusNode: _amountFocusNode,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
             ],
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -219,9 +338,7 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
             decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: '0',
-              hintStyle: TextStyle(
-                color: AppColors.surfaceContainerHighest,
-              ),
+              hintStyle: TextStyle(color: AppColors.surfaceContainerHighest),
               prefixText: 'Rs. ',
               prefixStyle: TextStyle(
                 fontSize: 32,
@@ -229,6 +346,9 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
                 color: AppColors.primary,
               ),
             ),
+            onChanged: (_) {
+              if (_amountError != null) setState(() => _amountError = null);
+            },
           ),
         ),
       ],
@@ -253,37 +373,12 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
       onPressed: () => _addQuickAmount(amount),
       backgroundColor: AppColors.surfaceContainerLowest,
       side: const BorderSide(color: AppColors.surfaceContainerHighest),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(100),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
       label: Text(
         '+$amount',
         style: const TextStyle(
           color: AppColors.onSurface,
           fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoteInput() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.surfaceContainerHighest.withOpacity(0.5)),
-      ),
-      child: const TextField(
-        decoration: InputDecoration(
-          icon: Icon(Icons.edit_note, color: AppColors.onSurfaceVariant),
-          border: InputBorder.none,
-          hintText: 'What\'s this for? (Optional)',
-          hintStyle: TextStyle(
-            color: AppColors.onSurfaceVariant,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-          ),
         ),
       ),
     );
@@ -295,122 +390,42 @@ class _SendMoneyScreenState extends State<SendMoneyScreen> {
       decoration: BoxDecoration(
         color: AppColors.background,
         border: Border(
-          top: BorderSide(color: AppColors.surfaceContainerHighest.withOpacity(0.5)),
+          top: BorderSide(
+              color: AppColors.surfaceContainerHighest.withOpacity(0.5)),
         ),
       ),
       child: ElevatedButton(
-        onPressed: () {
-          // Send action logic
-        },
+        onPressed: _busy ? null : _submit,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
           minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
-        child: const Text(
-          'Send Now',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background.withOpacity(0.9),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
-            blurRadius: 40,
-            offset: const Offset(0, -20),
-          ),
-        ],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 8, left: 16, right: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.home_outlined, 'Home', false, tabIndex: 0),
-              _buildNavItem(Icons.history, 'Activity', false, tabIndex: 1),
-              _buildNavItem(Icons.account_tree, 'Tree', true, tabIndex: 2),
-              _buildNavItem(Icons.settings_outlined, 'Settings', false, tabIndex: 3),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isActive, {
-    required int tabIndex,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        if (isActive) return;
-        if (tabIndex == 0) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 1) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildActivityScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 2) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildDashboardScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 3) {
-          Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: isActive
-            ? BoxDecoration(
-                color: AppColors.surfaceContainerHighest.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(16),
+        child: _busy
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
               )
-            : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
-                color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4),
+            : const Text(
+                'Send Now',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
+}
+
+String _describeError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('Insufficient balance')) return 'Insufficient balance.';
+  if (msg.contains('Cannot send')) return 'You cannot send to yourself.';
+  if (msg.contains('different family') || msg.contains('Cross-family')) {
+    return 'That person is not in your family.';
+  }
+  if (msg.contains('Not authenticated')) return 'Please sign in again.';
+  return 'Could not send. Please try again.';
 }

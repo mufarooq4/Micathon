@@ -1,89 +1,79 @@
 import 'package:flutter/material.dart';
-import 'package:micathon/screens/Sendmoney12.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:micathon/models/money.dart';
+import 'package:micathon/models/money_request.dart';
+import 'package:micathon/models/profile.dart';
+import 'package:micathon/models/transaction.dart';
 import 'package:micathon/screens/Monereq13.dart';
+import 'package:micathon/screens/Sendmoney12.dart';
+import 'package:micathon/state/family_providers.dart';
+import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/widgets/avatar_utils.dart';
 
-// void main() {
-//   runApp(const ViewFamilyMemberChild());
-// }
-
-// Defining the color palette based on the Tailwind config
 class AppColors {
   static const Color background = Color(0xFFFAF9F6);
   static const Color primary = Color(0xFF00502C);
   static const Color primaryFixed = Color(0xFF9DF6B9);
-  static const Color onPrimaryFixed = Color(0xFF00210F);
   static const Color primaryContainer = Color(0xFF006B3C);
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color surfaceContainerLow = Color(0xFFF4F3F1);
   static const Color surfaceContainerHighest = Color(0xFFE3E2E0);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color secondaryContainer = Color(0xFFC4E9CC);
-  static const Color onSecondaryContainer = Color(0xFF4A6A53);
   static const Color onSurface = Color(0xFF1A1C1A);
   static const Color onSurfaceVariant = Color(0xFF3F4941);
 }
 
-class ViewFamilyMemberChild extends StatelessWidget {
-  const ViewFamilyMemberChild({super.key});
+/// Profile screen for a single family member. Shows ledger history filtered
+/// to transactions between [member] and the current user, plus the requests
+/// shared between them. Send/Request buttons are gated by relationship: any
+/// family member can be sent money; only parents can be a request approver.
+class FamilyMemberProfileScreen extends ConsumerStatefulWidget {
+  const FamilyMemberProfileScreen({super.key, required this.member});
+
+  final Profile member;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Family Member Profile',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.background,
-        fontFamily: 'Manrope',
-        colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
-        useMaterial3: true,
-      ),
-      home: const FamilyMemberProfileScreen(),
-    );
-  }
+  ConsumerState<FamilyMemberProfileScreen> createState() =>
+      _FamilyMemberProfileScreenState();
 }
 
-class FamilyMemberProfileScreen extends StatefulWidget {
-  const FamilyMemberProfileScreen({super.key});
-
-  @override
-  State<FamilyMemberProfileScreen> createState() => _FamilyMemberProfileScreenState();
-}
-
-class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
-  // 0 = Transactions, 1 = Loan Requests
+class _FamilyMemberProfileScreenState
+    extends ConsumerState<FamilyMemberProfileScreen> {
+  // 0 = Transactions, 1 = Requests
   int _selectedTabIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    final me = ref.watch(myProfileProvider).asData?.value;
+    final txAsync = ref.watch(familyTransactionsProvider);
+    final reqAsync = ref.watch(familyRequestsProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildProfileHeader(),
+              _buildProfileHeader(me),
               const SizedBox(height: 32),
-              
-              // Custom Tab Bar
               _buildCustomTabBar(),
               const SizedBox(height: 24),
-              
-              // Dynamic Content based on selected tab
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
                 child: _selectedTabIndex == 0
-                    ? _buildTransactionsTab()
-                    : _buildLoansTab(),
+                    ? _buildTransactionsTab(me, txAsync)
+                    : _buildRequestsTab(me, reqAsync),
               ),
-              const SizedBox(height: 24), // Extra bottom padding
+              const SizedBox(height: 24),
             ],
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -97,48 +87,21 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
         icon: const Icon(Icons.arrow_back, color: AppColors.onSurface),
         onPressed: () => Navigator.of(context).maybePop(),
       ),
-      title: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: AppColors.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'CH', // Child's own profile initials
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Kafeel',
-            style: TextStyle(
+      title: const Text('Kafeel',
+          style: TextStyle(
               color: AppColors.primary,
               fontSize: 20,
               fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_none, color: AppColors.onSurfaceVariant),
-          onPressed: () {},
-        ),
-        const SizedBox(width: 16),
-      ],
+              letterSpacing: -0.5)),
     );
   }
 
-  Widget _buildProfileHeader() {
+  Widget _buildProfileHeader(Profile? me) {
+    final color = AvatarUtils.colorFor(widget.member.id);
+    final initial = AvatarUtils.initial(widget.member.fullName);
+    final canRequest =
+        widget.member.role == UserRole.parent && me?.id != widget.member.id;
+
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
@@ -158,7 +121,7 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
             width: 100,
             height: 100,
             decoration: BoxDecoration(
-              color: const Color(0xFF46654F),
+              color: color,
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.primaryFixed, width: 4),
               boxShadow: [
@@ -170,9 +133,9 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
               ],
             ),
             alignment: Alignment.center,
-            child: const Text(
-              'D', // Initial for 'Dad'
-              style: TextStyle(
+            child: Text(
+              initial,
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
@@ -180,9 +143,9 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Dad',
-            style: TextStyle(
+          Text(
+            widget.member.fullName,
+            style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
               color: AppColors.onSurface,
@@ -190,14 +153,15 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerHighest.withOpacity(0.5),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text(
-              'PARENT',
-              style: TextStyle(
+            child: Text(
+              _roleLabel(widget.member.role).toUpperCase(),
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.5,
@@ -212,9 +176,11 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.of(context).push(
+                    Navigator.of(context, rootNavigator: true).push(
                       MaterialPageRoute(
-                        builder: (_) => const SendMoneyScreen(),
+                        builder: (_) => SendMoneyScreen(
+                          initialRecipient: widget.member,
+                        ),
                       ),
                     );
                   },
@@ -228,30 +194,41 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  label: const Text('Send', style: TextStyle(fontWeight: FontWeight.w600)),
+                  label: const Text('Send',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const RequestMoneyScreen(),
-                      ),
-                    );
-                  },
+                  onPressed: canRequest
+                      ? () {
+                          Navigator.of(context, rootNavigator: true).push(
+                            MaterialPageRoute(
+                              builder: (_) => RequestMoneyScreen(
+                                initialApprover: widget.member,
+                              ),
+                            ),
+                          );
+                        }
+                      : null,
                   icon: const Icon(Icons.call_received, size: 18),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.surfaceContainerHighest,
+                    backgroundColor:
+                        AppColors.surfaceContainerHighest,
                     foregroundColor: AppColors.onSurface,
+                    disabledBackgroundColor:
+                        AppColors.surfaceContainerHighest.withOpacity(0.4),
+                    disabledForegroundColor:
+                        AppColors.onSurfaceVariant.withOpacity(0.5),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  label: const Text('Request', style: TextStyle(fontWeight: FontWeight.w600)),
+                  label: const Text('Request',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
@@ -261,7 +238,6 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
     );
   }
 
-  // --- NEW CUSTOM TAB BAR ---
   Widget _buildCustomTabBar() {
     return Container(
       padding: const EdgeInsets.all(4),
@@ -272,7 +248,7 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
       child: Row(
         children: [
           Expanded(child: _buildTabButton('Transactions', 0)),
-          Expanded(child: _buildTabButton('Loan Requests', 1)),
+          Expanded(child: _buildTabButton('Requests', 1)),
         ],
       ),
     );
@@ -281,32 +257,21 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
   Widget _buildTabButton(String title, int index) {
     bool isSelected = _selectedTabIndex == index;
     return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedTabIndex = index;
-        });
-      },
+      onTap: () => setState(() => _selectedTabIndex = index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.surfaceContainerLowest : Colors.transparent,
+          color:
+              isSelected ? AppColors.surfaceContainerLowest : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  )
-                ]
-              : [],
         ),
         alignment: Alignment.center,
         child: Text(
           title,
           style: TextStyle(
-            color: isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
+            color:
+                isSelected ? AppColors.primary : AppColors.onSurfaceVariant,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             fontSize: 14,
           ),
@@ -315,143 +280,85 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
     );
   }
 
-  // --- TRANSACTIONS TAB CONTENT ---
-  Widget _buildTransactionsTab() {
+  Widget _buildTransactionsTab(
+      Profile? me, AsyncValue<List<LedgerEntry>> txAsync) {
     return Column(
       key: const ValueKey('transactions'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'History with Dad',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface),
+        Text(
+          'History with ${widget.member.fullName}',
+          style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.onSurface),
         ),
         const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(24),
+        txAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
           ),
-          child: Column(
-            children: [
-              _buildTransactionItem(
-                icon: Icons.payments,
-                title: 'Monthly Allowance',
-                date: 'May 1, 2024',
-                amount: '+Rs. 5,000.00',
-                isPositive: true,
+          error: (e, _) =>
+              Text('Could not load: $e', style: const TextStyle(color: Colors.red)),
+          data: (all) {
+            final mine = me?.id ?? '';
+            final filtered = all.where((t) {
+              return (t.senderId == mine && t.receiverId == widget.member.id) ||
+                  (t.senderId == widget.member.id && t.receiverId == mine);
+            }).toList();
+            if (filtered.isEmpty) {
+              return _emptyTab('No transactions with ${widget.member.fullName} yet.');
+            }
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(24),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(color: AppColors.surfaceContainerLow, height: 1),
+              child: Column(
+                children: [
+                  for (var i = 0; i < filtered.length; i++) ...[
+                    _txRow(filtered[i], mine),
+                    if (i < filtered.length - 1)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Divider(
+                            color: AppColors.surfaceContainerLow, height: 1),
+                      ),
+                  ],
+                ],
               ),
-              _buildTransactionItem(
-                icon: Icons.fastfood,
-                title: 'Lunch Request Approved',
-                date: 'Apr 28, 2024',
-                amount: '+Rs. 500.00',
-                isPositive: true,
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(color: AppColors.surfaceContainerLow, height: 1),
-              ),
-              _buildTransactionItem(
-                icon: Icons.send,
-                title: 'Sent Money to Dad',
-                date: 'Apr 15, 2024',
-                amount: '-Rs. 250.00',
-                isPositive: false,
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ],
     );
   }
 
-  // --- LOAN REQUESTS TAB CONTENT ---
-  Widget _buildLoansTab() {
-    return Column(
-      key: const ValueKey('loans'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Loan Requests',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.onSurface),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLowest,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            children: [
-              _buildLoanItem(
-                title: 'School Trip',
-                date: 'Requested Today',
-                amount: 'Rs. 1,500.00',
-                status: 'Pending',
-                statusColor: Colors.amber[700]!,
-                statusBg: Colors.amber[50]!,
-                isOutgoing: true, // Child requested from Dad
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(color: AppColors.surfaceContainerLow, height: 1),
-              ),
-              _buildLoanItem(
-                title: 'New Sneakers',
-                date: 'Requested Apr 10',
-                amount: 'Rs. 3,000.00',
-                status: 'Approved',
-                statusColor: AppColors.primary,
-                statusBg: AppColors.secondaryContainer.withOpacity(0.5),
-                isOutgoing: true,
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12.0),
-                child: Divider(color: AppColors.surfaceContainerLow, height: 1),
-              ),
-              _buildLoanItem(
-                title: 'Dad borrowed for coffee',
-                date: 'Mar 25, 2024',
-                amount: 'Rs. 400.00',
-                status: 'Paid Back',
-                statusColor: AppColors.onSurfaceVariant,
-                statusBg: AppColors.surfaceContainerHighest,
-                isOutgoing: false, // Dad requested from Child
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- HELPER WIDGETS FOR LIST ITEMS ---
-  Widget _buildTransactionItem({
-    required IconData icon,
-    required String title,
-    required String date,
-    required String amount,
-    required bool isPositive,
-  }) {
+  Widget _txRow(LedgerEntry e, String meId) {
+    final outgoing = e.isOutgoingFor(meId);
+    final amount = outgoing
+        ? '-${Money.format(e.amountMinor)}'
+        : '+${Money.format(e.amountMinor)}';
+    final title = outgoing
+        ? 'Sent to ${widget.member.fullName}'
+        : 'Received from ${widget.member.fullName}';
     return Row(
       children: [
         Container(
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: isPositive ? AppColors.secondaryContainer.withOpacity(0.5) : AppColors.surfaceContainerHighest,
+            color: outgoing
+                ? AppColors.surfaceContainerHighest
+                : AppColors.secondaryContainer.withOpacity(0.5),
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
           child: Icon(
-            icon,
-            color: isPositive ? AppColors.primary : AppColors.onSurfaceVariant,
+            outgoing ? Icons.send : Icons.payments,
+            color: outgoing ? AppColors.onSurfaceVariant : AppColors.primary,
             size: 20,
           ),
         ),
@@ -460,15 +367,17 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.onSurface),
-              ),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: AppColors.onSurface)),
               const SizedBox(height: 4),
-              Text(
-                date,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant),
-              ),
+              Text(_formatDate(e.createdAt),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.onSurfaceVariant)),
             ],
           ),
         ),
@@ -477,22 +386,74 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 14,
-            color: isPositive ? AppColors.primary : AppColors.onSurface,
+            color: outgoing ? AppColors.onSurface : AppColors.primary,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLoanItem({
-    required String title,
-    required String date,
-    required String amount,
-    required String status,
-    required Color statusColor,
-    required Color statusBg,
-    required bool isOutgoing,
-  }) {
+  Widget _buildRequestsTab(
+      Profile? me, AsyncValue<List<MoneyRequest>> reqAsync) {
+    return Column(
+      key: const ValueKey('requests'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Money Requests',
+          style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.onSurface),
+        ),
+        const SizedBox(height: 16),
+        reqAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (e, _) => Text('Could not load: $e',
+              style: const TextStyle(color: Colors.red)),
+          data: (all) {
+            final mine = me?.id ?? '';
+            final filtered = all.where((r) {
+              return (r.requesterId == mine &&
+                      r.approverId == widget.member.id) ||
+                  (r.requesterId == widget.member.id && r.approverId == mine);
+            }).toList();
+            if (filtered.isEmpty) {
+              return _emptyTab('No requests with ${widget.member.fullName} yet.');
+            }
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(
+                children: [
+                  for (var i = 0; i < filtered.length; i++) ...[
+                    _requestRow(filtered[i], mine),
+                    if (i < filtered.length - 1)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12.0),
+                        child: Divider(
+                            color: AppColors.surfaceContainerLow, height: 1),
+                      ),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _requestRow(MoneyRequest r, String meId) {
+    final outgoing = r.requesterId == meId;
+    final color = _statusColor(r.status);
+    final amount = Money.format(r.amountMinor);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -505,7 +466,7 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
           ),
           alignment: Alignment.center,
           child: Icon(
-            isOutgoing ? Icons.arrow_outward : Icons.arrow_downward,
+            outgoing ? Icons.arrow_outward : Icons.arrow_downward,
             color: AppColors.onSurfaceVariant,
             size: 18,
           ),
@@ -516,27 +477,34 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.onSurface),
+                outgoing
+                    ? 'You requested $amount'
+                    : '${widget.member.fullName} requested $amount',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.onSurface),
               ),
               const SizedBox(height: 4),
-              Text(
-                date,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.onSurfaceVariant),
-              ),
+              Text(_formatDate(r.createdAt),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.onSurfaceVariant)),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusBg,
+                  color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  status,
+                  r.status.label,
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: statusColor,
+                    color: color,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -544,76 +512,61 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
             ],
           ),
         ),
-        Text(
-          amount,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: AppColors.onSurface,
-          ),
-        ),
       ],
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _emptyTab(String message) {
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
       decoration: BoxDecoration(
-        color: AppColors.background.withOpacity(0.9),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withOpacity(0.06),
-            blurRadius: 40,
-            offset: const Offset(0, -20),
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.history, size: 32, color: Colors.grey[400]),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
         ],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 16, bottom: 8, left: 16, right: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.home_outlined, 'Home', false),
-              _buildNavItem(Icons.history, 'Activity', false),
-              _buildNavItem(Icons.account_tree, 'Tree', true),
-              _buildNavItem(Icons.settings_outlined, 'Settings', false),
-            ],
-          ),
-        ),
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: isActive
-          ? BoxDecoration(
-              color: AppColors.surfaceContainerHighest.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(16),
-            )
-          : null,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.0,
-              color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4),
-            ),
-          ),
-        ],
-      ),
-    );
+  String _roleLabel(UserRole r) {
+    switch (r) {
+      case UserRole.parent:
+        return 'Parent';
+      case UserRole.child:
+        return 'Child';
+      case UserRole.pending:
+        return 'Pending';
+      case UserRole.unknown:
+        return 'Member';
+    }
+  }
+
+  Color _statusColor(RequestStatus s) {
+    switch (s) {
+      case RequestStatus.pending:
+        return Colors.amber.shade700;
+      case RequestStatus.approved:
+      case RequestStatus.executed:
+        return AppColors.primary;
+      case RequestStatus.declined:
+      case RequestStatus.cancelled:
+        return Colors.red.shade400;
+      case RequestStatus.unknown:
+        return AppColors.onSurfaceVariant;
+    }
+  }
+
+  String _formatDate(DateTime ts) {
+    final l = ts.toLocal();
+    return '${l.day}/${l.month}/${l.year}';
   }
 }

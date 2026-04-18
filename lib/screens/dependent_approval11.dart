@@ -1,408 +1,275 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:micathon/models/money.dart';
+import 'package:micathon/models/money_request.dart';
+import 'package:micathon/models/profile.dart';
+import 'package:micathon/state/family_providers.dart';
 
-void main() {
-  runApp(const Dependent_approval());
-}
+/// Child's "My Requests" outbox. Shows every money request the current
+/// user has created (any status), and lets them cancel pending ones.
+class MyRequestsScreen extends ConsumerWidget {
+  const MyRequestsScreen({super.key});
 
-class Dependent_approval extends StatelessWidget {
-  const Dependent_approval({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Neobank App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Manrope', // Make sure to add this font in pubspec.yaml if needed
-        scaffoldBackgroundColor: const Color(0xFFFAF9F3),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF006B3C)),
-        useMaterial3: true,
-      ),
-      home: const IncomingRequestScreen(),
-    );
-  }
-}
-
-class IncomingRequestScreen extends StatelessWidget {
-  const IncomingRequestScreen({super.key});
-
-  // Color Palette matches the HTML
   static const Color primaryColor = Color(0xFF006B3C);
   static const Color darkGreen = Color(0xFF1B4332);
   static const Color bgColor = Color(0xFFFAF9F3);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final outgoing = ref.watch(myOutgoingRequestsProvider);
+    final family = ref.watch(familyMembersProvider);
+
     return Scaffold(
       backgroundColor: bgColor,
-      // 1. Top App Bar placed in Scaffold slot prevents top overlap
       appBar: AppBar(
         backgroundColor: const Color(0xFFFDFCFB),
-        surfaceTintColor: Colors.transparent, // Prevents scroll color bleeding
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(color: Colors.grey.shade200, height: 1),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: darkGreen),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
-        title: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade200,
-                shape: BoxShape.circle,
-                image: const DecorationImage(
-                  image: NetworkImage(
-                    'https://ui-avatars.com/api/?name=Kafeel&background=random',
-                  ), // Placeholder image
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'Kafeel',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-                color: darkGreen,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded, color: darkGreen),
-            splashRadius: 24,
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      
-      // 2. Main Scrollable Content
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 32, 24, 48),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeroSection(),
-              const SizedBox(height: 24),
-              _buildInfoCards(),
-              const SizedBox(height: 32),
-              _buildActionButtons(),
-              const SizedBox(height: 16),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 32),
-                child: Text(
-                  'By approving, you agree to the family terms and account monitoring.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey,
-                    fontWeight: FontWeight.w500,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-            ],
+        title: const Text(
+          'My Requests',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: darkGreen,
+            letterSpacing: -0.5,
           ),
         ),
       ),
-
-      // 3. Bottom Nav placed in Scaffold slot prevents bottom overlap
-      bottomNavigationBar: _buildBottomNav(),
-    );
-  }
-
-  Widget _buildHeroSection() {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200.withOpacity(0.5),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.center,
-        children: [
-          // Decorative blur background element
-          Positioned(
-            top: -40,
-            right: -40,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: primaryColor.withOpacity(0.05),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withOpacity(0.05),
-                    blurRadius: 40,
-                    spreadRadius: 20,
-                  )
-                ],
-              ),
+      body: outgoing.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Could not load requests: $e',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
             ),
           ),
-          // Main Content
-          Column(
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: primaryColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text(
-                    'K',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Incoming Family Request',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                  color: darkGreen,
-                  height: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Kafeel Parent wants to add you as a Child in their family tree.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
-        ],
+        ),
+        data: (list) {
+          if (list.isEmpty) return _empty();
+          final members = family.asData?.value ?? const <Profile>[];
+          final byId = {for (final p in members) p.id: p};
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            itemCount: list.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (_, i) => _RequestTile(
+              request: list[i],
+              approver: byId[list[i].approverId ?? ''],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildInfoCards() {
-    return Column(
-      children: [
-        _buildDetailCard(
-          icon: Icons.account_balance_wallet_outlined,
-          title: 'Monthly Spending Limit',
-          value: 'PKR 10,000',
-        ),
-        const SizedBox(height: 16),
-        _buildDetailCard(
-          icon: Icons.update,
-          title: 'Auto-Release Allowance',
-          value: 'PKR 2,000 every Saturday',
-        ),
-        const SizedBox(height: 16),
-        _buildDetailCard(
-          icon: Icons.visibility,
-          title: 'Permissions',
-          value: 'Parent can view transaction history.',
-          isPermissionVariant: true,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailCard({
-    required IconData icon,
-    required String title,
-    required String value,
-    bool isPermissionVariant = false,
-  }) {
-    final bgColor = isPermissionVariant ? darkGreen.withOpacity(0.05) : Colors.white;
-    final borderColor = isPermissionVariant ? darkGreen.withOpacity(0.1) : Colors.grey.shade100;
-    final iconBgColor = isPermissionVariant ? darkGreen : Colors.green.shade50;
-    final iconColor = isPermissionVariant ? Colors.white : primaryColor;
-
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-        boxShadow: isPermissionVariant
-            ? []
-            : [
-                BoxShadow(
-                  color: Colors.grey.shade100,
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                )
-              ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: isPermissionVariant ? Colors.grey.shade600 : Colors.grey.shade400,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: isPermissionVariant ? 14 : 18,
-                    fontWeight: isPermissionVariant ? FontWeight.w600 : FontWeight.w800,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ElevatedButton(
-          onPressed: () {},
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            elevation: 8,
-            shadowColor: primaryColor.withOpacity(0.4),
-          ),
-          child: const Text(
-            'Approve & Link',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextButton(
-          onPressed: () {},
-          style: TextButton.styleFrom(
-            foregroundColor: Colors.grey.shade600,
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: const Text(
-            'Decline Request',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade100)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 6,
-            offset: const Offset(0, -4),
-          )
-        ],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24), // Added bottom padding for safe area
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildNavItem(icon: Icons.home_filled, label: 'Home', isActive: true),
-          _buildNavItem(icon: Icons.history, label: 'Activity'),
-          _buildNavItem(icon: Icons.account_tree_outlined, label: 'Tree'),
-          _buildNavItem(icon: Icons.settings_outlined, label: 'Settings'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({required IconData icon, required String label, bool isActive = false}) {
-    final color = isActive ? primaryColor : Colors.grey.shade400;
-    
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.green.shade50 : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
+  Widget _empty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
+            Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 12),
             Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
+              'You haven’t made any requests yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _RequestTile extends ConsumerStatefulWidget {
+  const _RequestTile({required this.request, required this.approver});
+
+  final MoneyRequest request;
+  final Profile? approver;
+
+  @override
+  ConsumerState<_RequestTile> createState() => _RequestTileState();
+}
+
+class _RequestTileState extends ConsumerState<_RequestTile> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.request;
+    final approverName = widget.approver?.fullName ?? 'a parent';
+    final color = _statusColor(r.status);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.shade200.withOpacity(0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: MyRequestsScreen.primaryColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.call_received,
+                  color: MyRequestsScreen.primaryColor,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'To $approverName',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: MyRequestsScreen.darkGreen,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(r.createdAt),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                Money.format(r.amountMinor),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: MyRequestsScreen.darkGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  r.status.label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: color,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (r.isPending)
+                _busy
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : TextButton(
+                        onPressed: _cancel,
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red.shade400,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                        ),
+                        child: const Text(
+                          'Cancel',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13),
+                        ),
+                      ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancel() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(requestsRepositoryProvider).actOnRequest(
+            requestId: widget.request.id,
+            action: 'cancel',
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Request cancelled.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text('Could not cancel: $e'),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+        ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Color _statusColor(RequestStatus s) {
+    switch (s) {
+      case RequestStatus.pending:
+        return Colors.amber.shade700;
+      case RequestStatus.approved:
+      case RequestStatus.executed:
+        return MyRequestsScreen.primaryColor;
+      case RequestStatus.declined:
+      case RequestStatus.cancelled:
+        return Colors.red.shade400;
+      case RequestStatus.unknown:
+        return Colors.grey.shade600;
+    }
+  }
+
+  String _formatDate(DateTime ts) {
+    final l = ts.toLocal();
+    return '${l.day}/${l.month}/${l.year}';
   }
 }

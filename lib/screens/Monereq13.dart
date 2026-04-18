@@ -1,63 +1,155 @@
 import 'package:flutter/material.dart';
-import 'package:micathon/screens/childhome5.dart';
-import 'package:micathon/screens/child_activity6.dart';
-import 'package:micathon/screens/child_view_of_family_tree7.dart';
-import 'package:micathon/screens/settings_screen.dart';
-
-// void main() {
-//   runApp(const RequestMoneyApp());
-// }
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:micathon/models/money.dart';
+import 'package:micathon/models/profile.dart';
+import 'package:micathon/state/family_providers.dart';
+import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/widgets/avatar_utils.dart';
 
 class AppColors {
   static const Color background = Color(0xFFFAF9F6);
   static const Color primary = Color(0xFF00502C);
   static const Color primaryContainer = Color(0xFF006B3C);
-  static const Color loanAccent = Color(0xFF3F51B5); // Distinct color for "Borrow"
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color surfaceContainerHighest = Color(0xFFE3E2E0);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color onSurface = Color(0xFF1A1C1A);
   static const Color onSurfaceVariant = Color(0xFF3F4941);
+  static const Color error = Color(0xFFBA1A1A);
 }
 
-class RequestMoneyApp extends StatelessWidget {
-  const RequestMoneyApp({super.key});
+/// Request money flow. Pass [initialApprover] from a profile screen, or
+/// leave null to let the user pick a parent from their family.
+class RequestMoneyScreen extends ConsumerStatefulWidget {
+  const RequestMoneyScreen({super.key, this.initialApprover});
+
+  final Profile? initialApprover;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Request Money',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        scaffoldBackgroundColor: AppColors.background,
-        fontFamily: 'Manrope',
-        useMaterial3: true,
-      ),
-      home: const RequestMoneyScreen(),
-    );
-  }
+  ConsumerState<RequestMoneyScreen> createState() =>
+      _RequestMoneyScreenState();
 }
 
-class RequestMoneyScreen extends StatefulWidget {
-  const RequestMoneyScreen({super.key});
-
-  @override
-  State<RequestMoneyScreen> createState() => _RequestMoneyScreenState();
-}
-
-class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
+class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
   final TextEditingController _amountController = TextEditingController();
   final FocusNode _amountFocusNode = FocusNode();
-  
-  // 0 = Request Money, 1 = Borrow (Loan)
-  int _requestTypeIndex = 0;
+
+  Profile? _approver;
+  bool _busy = false;
+  String? _amountError;
 
   @override
   void initState() {
     super.initState();
+    _approver = widget.initialApprover;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _amountFocusNode.requestFocus();
+      if (_approver != null) _amountFocusNode.requestFocus();
     });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _amountFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final approver = _approver;
+    if (approver == null) {
+      setState(() => _amountError = 'Pick a parent to request from.');
+      return;
+    }
+    final amount = Money.parseMajorToMinor(_amountController.text);
+    if (amount == null) {
+      setState(() => _amountError = 'Enter a positive amount.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _amountError = null;
+    });
+    try {
+      await ref.read(requestsRepositoryProvider).createRequest(
+            approverId: approver.id,
+            amountMinor: amount,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+          content: Text(
+            'Requested ${Money.format(amount)} from ${approver.fullName}.',
+          ),
+        ));
+      Navigator.of(context).maybePop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _amountError = _describeError(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickApprover() async {
+    final me = ref.read(myProfileProvider).asData?.value;
+    final family = ref.read(familyMembersProvider).asData?.value ??
+        const <Profile>[];
+    final parents = family
+        .where((p) => p.id != me?.id && p.role == UserRole.parent)
+        .toList();
+    if (parents.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('No parents in your family yet.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      return;
+    }
+    final picked = await showModalBottomSheet<Profile>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(20),
+              child: Text('Request from',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.onSurface)),
+            ),
+            for (final p in parents)
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AvatarUtils.colorFor(p.id),
+                  child: Text(
+                    AvatarUtils.initial(p.fullName),
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                title: Text(p.fullName),
+                subtitle: const Text('Parent'),
+                onTap: () => Navigator.of(ctx).pop(p),
+              ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) {
+      setState(() => _approver = picked);
+      _amountFocusNode.requestFocus();
+    }
   }
 
   @override
@@ -75,15 +167,19 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
                 child: Column(
                   children: [
                     _buildRecipientPill(),
-                    const SizedBox(height: 32),
-                    
-                    // NEW: Toggle between Request and Borrow
-                    _buildRequestTypeToggle(),
-                    
                     const SizedBox(height: 40),
                     _buildAmountInput(),
-                    const SizedBox(height: 48),
-                    _buildNoteInput(),
+                    const SizedBox(height: 16),
+                    if (_amountError != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          _amountError!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              color: AppColors.error, fontSize: 13),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -92,7 +188,6 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -102,76 +197,56 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
       elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.close, color: AppColors.onSurface),
-        onPressed: () => Navigator.pop(context),
+        onPressed: () => Navigator.of(context).maybePop(),
       ),
-      title: const Text('Request Funds', 
-        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+      title: const Text('Request Funds',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
       centerTitle: true,
     );
   }
 
   Widget _buildRecipientPill() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text('Requesting from:', style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant)),
-          const SizedBox(width: 8),
-          const CircleAvatar(
-            radius: 12,
-            backgroundColor: Color(0xFF46654F),
-            child: Text('D', style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-          const SizedBox(width: 8),
-          const Text('Dad', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRequestTypeToggle() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHighest.withOpacity(0.4),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: _buildToggleItem('Request Money', 0)),
-          Expanded(child: _buildToggleItem('Borrow (Loan)', 1)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleItem(String label, int index) {
-    bool isSelected = _requestTypeIndex == index;
-    Color activeColor = index == 0 ? AppColors.primary : AppColors.loanAccent;
-
-    return GestureDetector(
-      onTap: () => setState(() => _requestTypeIndex = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 12),
+    final a = _approver;
+    return InkWell(
+      borderRadius: BorderRadius.circular(100),
+      onTap: _pickApprover,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.surfaceContainerLowest : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)] : [],
+          color: AppColors.surfaceContainerHighest.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(100),
         ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? activeColor : AppColors.onSurfaceVariant,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-            fontSize: 13,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Requesting from:',
+                style: TextStyle(
+                    fontSize: 14, color: AppColors.onSurfaceVariant)),
+            const SizedBox(width: 8),
+            if (a != null) ...[
+              CircleAvatar(
+                radius: 12,
+                backgroundColor: AvatarUtils.colorFor(a.id),
+                child: Text(
+                  AvatarUtils.initial(a.fullName),
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(a.fullName,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.bold)),
+              const SizedBox(width: 6),
+              const Icon(Icons.unfold_more,
+                  color: AppColors.onSurfaceVariant, size: 16),
+            ] else
+              const Text('Pick parent',
+                  style: TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.bold)),
+          ],
         ),
       ),
     );
@@ -180,9 +255,13 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
   Widget _buildAmountInput() {
     return Column(
       children: [
-        Text(
-          _requestTypeIndex == 0 ? 'HOW MUCH DO YOU NEED?' : 'HOW MUCH TO BORROW?',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: AppColors.onSurfaceVariant),
+        const Text(
+          'HOW MUCH DO YOU NEED?',
+          style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.5,
+              color: AppColors.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
         IntrinsicWidth(
@@ -190,136 +269,75 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
             controller: _amountController,
             focusNode: _amountFocusNode,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 56, 
-              fontWeight: FontWeight.w800, 
-              color: _requestTypeIndex == 0 ? AppColors.primary : AppColors.loanAccent,
+            style: const TextStyle(
+              fontSize: 56,
+              fontWeight: FontWeight.w800,
+              color: AppColors.primary,
               letterSpacing: -2.0,
             ),
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               border: InputBorder.none,
               hintText: '0',
-              hintStyle: const TextStyle(color: AppColors.surfaceContainerHighest),
+              hintStyle: TextStyle(color: AppColors.surfaceContainerHighest),
               prefixText: 'Rs. ',
-              prefixStyle: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: _requestTypeIndex == 0 ? AppColors.primary : AppColors.loanAccent),
+              prefixStyle: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primary),
             ),
+            onChanged: (_) {
+              if (_amountError != null) setState(() => _amountError = null);
+            },
           ),
         ),
       ],
     );
   }
 
-  Widget _buildNoteInput() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceContainerHighest.withOpacity(0.5)),
-      ),
-      child: TextField(
-        decoration: InputDecoration(
-          icon: Icon(Icons.description_outlined, color: AppColors.onSurfaceVariant, size: 20),
-          border: InputBorder.none,
-          hintText: _requestTypeIndex == 0 ? 'Reason for request' : 'Why do you need this loan?',
-          hintStyle: const TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
-        ),
-      ),
-    );
-  }
-
   Widget _buildBottomActionArea() {
-    bool isLoan = _requestTypeIndex == 1;
     return Container(
       padding: const EdgeInsets.all(24.0),
       decoration: BoxDecoration(
         color: AppColors.background,
-        border: Border(top: BorderSide(color: AppColors.surfaceContainerHighest.withOpacity(0.5))),
+        border: Border(
+            top: BorderSide(
+                color: AppColors.surfaceContainerHighest.withOpacity(0.5))),
       ),
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: _busy ? null : _submit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isLoan ? AppColors.loanAccent : AppColors.primary,
+          backgroundColor: AppColors.primary,
           foregroundColor: AppColors.onPrimary,
           minimumSize: const Size(double.infinity, 56),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
           elevation: 0,
         ),
-        child: Text(
-          isLoan ? 'Request Loan' : 'Send Request',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        child: _busy
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
+              )
+            : const Text('Send Request',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }
+}
 
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 40, offset: const Offset(0, -20))],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.home_outlined, 'Home', false, tabIndex: 0),
-              _buildNavItem(Icons.history, 'Activity', false, tabIndex: 1),
-              _buildNavItem(Icons.account_tree, 'Tree', true, tabIndex: 2),
-              _buildNavItem(Icons.settings_outlined, 'Settings', false, tabIndex: 3),
-            ],
-          ),
-        ),
-      ),
-    );
+String _describeError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('Approver not found')) return 'That parent is not in your family.';
+  if (msg.contains('approve money requests')) return 'You can only request from a parent.';
+  if (msg.contains('Cannot request from yourself')) {
+    return 'You cannot request from yourself.';
   }
-
-  Widget _buildNavItem(
-    IconData icon,
-    String label,
-    bool isActive, {
-    required int tabIndex,
-  }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        if (isActive) return;
-        if (tabIndex == 0) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 1) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildActivityScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 2) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const ChildDashboardScreen()),
-            (route) => false,
-          );
-        } else if (tabIndex == 3) {
-          Navigator.of(context, rootNavigator: true).push(
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
-          );
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4)),
-            const SizedBox(height: 4),
-            Text(label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4))),
-          ],
-        ),
-      ),
-    );
-  }
+  if (msg.contains('Not authenticated')) return 'Please sign in again.';
+  return 'Could not create request. Please try again.';
 }
