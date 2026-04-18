@@ -11,10 +11,15 @@ import 'profile_providers.dart';
 
 /// Family / transactions / requests Riverpod graph.
 ///
-/// Everything here keys off the SAME `myProfileProvider` so that when the
-/// router transitions a user from `pending` → onboarded (family_id appears)
-/// the dependent streams immediately wake up and start emitting. Likewise
-/// on sign-out they all collapse to empty/null.
+/// IMPORTANT: every stream provider in here keys off ONLY the bits of the
+/// profile it actually depends on (family_id and user id), via `.select`.
+///
+/// Watching the whole `myProfileProvider` would re-run the body on every
+/// balance update, which would cancel and re-open the underlying Supabase
+/// Realtime channels every single time money moved. After a few minutes of
+/// normal use that produces a runaway churn of websocket channels and the
+/// app eventually dies (OOM / dropped websocket / ANR). Always `.select`
+/// the minimal key.
 
 final familyRepositoryProvider = Provider<FamilyRepository>((ref) {
   return FamilyRepository(ref.watch(supabaseClientProvider));
@@ -28,11 +33,31 @@ final requestsRepositoryProvider = Provider<RequestsRepository>((ref) {
   return RequestsRepository(ref.watch(supabaseClientProvider));
 });
 
+/// Just the current user's family id. Re-emits ONLY when the id changes
+/// (sign in/out, redeem invite, create family). Used as the stable key for
+/// every family-scoped realtime stream below.
+final _myFamilyIdProvider = Provider<String?>((ref) {
+  return ref.watch(
+    myProfileProvider.select((async) => async.asData?.value?.familyId),
+  );
+});
+
+/// (familyId, userId) pair for streams that need both. Equality on Dart
+/// records is structural, so `.select` correctly skips re-runs when neither
+/// value changes.
+final _familyAndUserIdProvider = Provider<(String?, String?)>((ref) {
+  return ref.watch(
+    myProfileProvider.select((async) {
+      final p = async.asData?.value;
+      return (p?.familyId, p?.id);
+    }),
+  );
+});
+
 /// Live list of every member of the current user's family. Empty when the
 /// user has no family yet.
 final familyMembersProvider = StreamProvider<List<Profile>>((ref) {
-  final profileAsync = ref.watch(myProfileProvider);
-  final familyId = profileAsync.asData?.value?.familyId;
+  final familyId = ref.watch(_myFamilyIdProvider);
   if (familyId == null) return Stream<List<Profile>>.value(const []);
   final repo = ref.watch(familyRepositoryProvider);
   return repo.watchFamilyMembers(familyId);
@@ -41,8 +66,7 @@ final familyMembersProvider = StreamProvider<List<Profile>>((ref) {
 /// Live family ledger (newest first). For parents this is the entire
 /// family; for children RLS narrows it down to rows they're a party to.
 final familyTransactionsProvider = StreamProvider<List<LedgerEntry>>((ref) {
-  final profileAsync = ref.watch(myProfileProvider);
-  final familyId = profileAsync.asData?.value?.familyId;
+  final familyId = ref.watch(_myFamilyIdProvider);
   if (familyId == null) return Stream<List<LedgerEntry>>.value(const []);
   final repo = ref.watch(transactionsRepositoryProvider);
   return repo.watchVisibleTransactions(familyId);
@@ -52,54 +76,43 @@ final familyTransactionsProvider = StreamProvider<List<LedgerEntry>>((ref) {
 /// user is sender or receiver. Used by Child Activity (and useful for any
 /// "Recent activity" peek on Parent screens).
 final myTransactionsProvider = StreamProvider<List<LedgerEntry>>((ref) {
-  final profile = ref.watch(myProfileProvider).asData?.value;
-  if (profile?.familyId == null) {
+  final (familyId, userId) = ref.watch(_familyAndUserIdProvider);
+  if (familyId == null || userId == null) {
     return Stream<List<LedgerEntry>>.value(const []);
   }
   final repo = ref.watch(transactionsRepositoryProvider);
-  return repo.watchOwnTransactions(
-    familyId: profile!.familyId!,
-    userId: profile.id,
-  );
+  return repo.watchOwnTransactions(familyId: familyId, userId: userId);
 });
 
 /// Live list of every request visible to the user (parents see all family
 /// requests, children see their own only).
 final familyRequestsProvider = StreamProvider<List<MoneyRequest>>((ref) {
-  final profile = ref.watch(myProfileProvider).asData?.value;
-  if (profile?.familyId == null) {
-    return Stream<List<MoneyRequest>>.value(const []);
-  }
+  final familyId = ref.watch(_myFamilyIdProvider);
+  if (familyId == null) return Stream<List<MoneyRequest>>.value(const []);
   final repo = ref.watch(requestsRepositoryProvider);
-  return repo.watchVisibleRequests(profile!.familyId!);
+  return repo.watchVisibleRequests(familyId);
 });
 
 /// Pending requests where the current user is the chosen approver.
 /// Used by Parent Home for the approve/decline card.
 final myIncomingPendingRequestsProvider =
     StreamProvider<List<MoneyRequest>>((ref) {
-  final profile = ref.watch(myProfileProvider).asData?.value;
-  if (profile?.familyId == null) {
+  final (familyId, userId) = ref.watch(_familyAndUserIdProvider);
+  if (familyId == null || userId == null) {
     return Stream<List<MoneyRequest>>.value(const []);
   }
   final repo = ref.watch(requestsRepositoryProvider);
-  return repo.watchIncomingPending(
-    familyId: profile!.familyId!,
-    parentId: profile.id,
-  );
+  return repo.watchIncomingPending(familyId: familyId, parentId: userId);
 });
 
 /// Requests CREATED by the current user (any status). Used by Child Home
 /// preview and the dependent_approval outbox screen.
 final myOutgoingRequestsProvider =
     StreamProvider<List<MoneyRequest>>((ref) {
-  final profile = ref.watch(myProfileProvider).asData?.value;
-  if (profile?.familyId == null) {
+  final (familyId, userId) = ref.watch(_familyAndUserIdProvider);
+  if (familyId == null || userId == null) {
     return Stream<List<MoneyRequest>>.value(const []);
   }
   final repo = ref.watch(requestsRepositoryProvider);
-  return repo.watchOutgoing(
-    familyId: profile!.familyId!,
-    userId: profile.id,
-  );
+  return repo.watchOutgoing(familyId: familyId, userId: userId);
 });
