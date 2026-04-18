@@ -898,20 +898,54 @@ class _LimitsSection extends ConsumerWidget {
               );
             }
 
-            return _LimitsCardShell(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (hasLimit)
-                    _LimitTile(amountMinor: controls!.monthlyLimitMinor!),
-                  if (hasLimit && hasSchedule) const SizedBox(height: 12),
-                  if (hasSchedule)
-                    _AutoTransferTile(
+            final limitCard = hasLimit
+                ? _LimitsCardShell(
+                    child:
+                        _LimitTile(amountMinor: controls!.monthlyLimitMinor!),
+                  )
+                : null;
+            final scheduleCard = hasSchedule
+                ? _LimitsCardShell(
+                    child: _AutoTransferTile(
                       amountMinor: controls.autoTransferAmountMinor!,
                       day: controls.autoTransferDay!,
                     ),
-                ],
-              ),
+                  )
+                : null;
+
+            final cards = <Widget>[
+              ?limitCard,
+              ?scheduleCard,
+            ];
+
+            // Single card present → render full width, no row needed.
+            if (cards.length == 1) return cards.single;
+
+            // Both present → side-by-side on wide screens, stacked on narrow.
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final sideBySide = constraints.maxWidth >= 360;
+                if (!sideBySide) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      cards[0],
+                      const SizedBox(height: 12),
+                      cards[1],
+                    ],
+                  );
+                }
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: cards[0]),
+                      const SizedBox(width: 12),
+                      Expanded(child: cards[1]),
+                    ],
+                  ),
+                );
+              },
             );
           },
         ),
@@ -945,6 +979,63 @@ class _LimitsCardShell extends StatelessWidget {
   }
 }
 
+/// Shared vertical "stat card" layout so the Monthly Limit and Weekly
+/// Allowance tiles have identical visual weight when shown side-by-side.
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.amountMinor,
+    this.footer,
+  });
+
+  final IconData icon;
+  final String label;
+  final BigInt amountMinor;
+  final Widget? footer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CircleAvatar(
+          backgroundColor: _limitsGreenBg,
+          radius: 22,
+          child: Icon(icon, color: _limitsGreen, size: 22),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+            color: _limitsTextGrey,
+          ),
+        ),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            Money.format(amountMinor),
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: _limitsTextDark,
+            ),
+          ),
+        ),
+        if (footer != null) ...[
+          const SizedBox(height: 8),
+          footer!,
+        ],
+      ],
+    );
+  }
+}
+
 class _LimitTile extends StatelessWidget {
   const _LimitTile({required this.amountMinor});
   final BigInt amountMinor;
@@ -952,59 +1043,28 @@ class _LimitTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final paused = amountMinor == BigInt.zero;
-    return Row(
-      children: [
-        const CircleAvatar(
-          backgroundColor: _limitsGreenBg,
-          radius: 22,
-          child: Icon(Icons.tune, color: _limitsGreen, size: 22),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'MONTHLY LIMIT',
+    return _StatTile(
+      icon: Icons.tune,
+      label: 'MONTHLY LIMIT',
+      amountMinor: amountMinor,
+      footer: paused
+          ? Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '(spending paused)',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                  color: _limitsTextGrey,
+                  color: Colors.red.shade400,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                Money.format(amountMinor),
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: _limitsTextDark,
-                ),
-              ),
-              if (paused) ...[
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '(spending paused)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.red.shade400,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
+            )
+          : null,
     );
   }
 }
@@ -1016,57 +1076,28 @@ class _AutoTransferTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const CircleAvatar(
-          backgroundColor: _limitsGreenBg,
-          radius: 22,
-          child: Icon(Icons.update, color: _limitsGreen, size: 22),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'WEEKLY ALLOWANCE',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                  color: _limitsTextGrey,
-                ),
+    return _StatTile(
+      icon: Icons.update,
+      label: 'WEEKLY ALLOWANCE',
+      amountMinor: amountMinor,
+      footer: Row(
+        children: [
+          const Icon(Icons.calendar_today,
+              size: 14, color: _limitsTextGrey),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              'Every ${_dayName(day)}',
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: _limitsTextGrey,
               ),
-              const SizedBox(height: 4),
-              Text(
-                Money.format(amountMinor),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: _limitsTextDark,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.calendar_today,
-                      size: 14, color: _limitsTextGrey),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Every ${_dayName(day)}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: _limitsTextGrey,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
