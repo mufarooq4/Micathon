@@ -9,7 +9,7 @@ void main() {
 }
 
 class ParentViewFamilyTree extends StatelessWidget {
-  const ParentViewFamilyTree({Key? key}) : super(key: key);
+  const ParentViewFamilyTree({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +27,7 @@ class ParentViewFamilyTree extends StatelessWidget {
 }
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
