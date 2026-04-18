@@ -46,8 +46,21 @@ class Manage_dependent extends StatelessWidget {
   }
 }
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  // Local UI state for the budget / auto-release controls. These live
+  // in-memory until the persistence layer (Supabase RPC for parental
+  // controls) is wired up — the slider and switches update instantly so
+  // the UX matches the design even before the backend exists.
+  double _monthlyAllowance = 500.0;
+  bool _spendingLimitsEnabled = true;
+  bool _autoReleaseEnabled = true;
 
   @override
   Widget build(BuildContext context) {
@@ -293,71 +306,56 @@ class DashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.end,
-            children: const [
-              Text('MONTHLY ALLOWANCE',
+            children: [
+              const Text('MONTHLY ALLOWANCE',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 1.0,
                       color: AppColors.onSurfaceVariant)),
-              Text('Rs. 500',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Custom Slider visual
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                height: 8,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              FractionallySizedBox(
-                widthFactor: 0.6,
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: -6,
-                child: FractionallySizedBox(
-                  widthFactor: 0.6,
-                  alignment: Alignment.centerLeft,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLowest,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary, width: 2),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              Text('Rs. ${_monthlyAllowance.toInt()}',
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 8),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: AppColors.primary,
+              inactiveTrackColor: AppColors.surfaceContainerHighest,
+              thumbColor: AppColors.surfaceContainerLowest,
+              trackHeight: 8.0,
+              thumbShape: const RoundSliderThumbShape(
+                enabledThumbRadius: 10.0,
+                elevation: 2,
+              ),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 18.0),
+              overlayColor: AppColors.primary.withOpacity(0.12),
+            ),
+            child: Slider(
+              value: _monthlyAllowance,
+              min: 0,
+              max: 1000,
+              divisions: 100,
+              onChanged: (value) {
+                setState(() => _monthlyAllowance = value);
+              },
+            ),
+          ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('\$0', style: TextStyle(fontSize: 12, color: AppColors.outlineVariant, fontWeight: FontWeight.w500)),
-              Text('\$1000', style: TextStyle(fontSize: 12, color: AppColors.outlineVariant, fontWeight: FontWeight.w500)),
+              Text('Rs. 0',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.outlineVariant,
+                      fontWeight: FontWeight.w500)),
+              Text('Rs. 1000',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.outlineVariant,
+                      fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 24),
@@ -369,11 +367,19 @@ class DashboardScreen extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Text('Spending Limits', style: TextStyle(fontWeight: FontWeight.bold)),
-                  Text('Block certain categories', style: TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant)),
+                  Text('Spending Limits',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Block certain categories',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.onSurfaceVariant)),
                 ],
               ),
-              _buildCustomSwitch(true),
+              _buildCustomSwitch(
+                _spendingLimitsEnabled,
+                onChanged: (v) =>
+                    setState(() => _spendingLimitsEnabled = v),
+              ),
             ],
           ),
         ],
@@ -421,7 +427,11 @@ class DashboardScreen extends StatelessWidget {
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  _buildCustomSwitch(true),
+                  _buildCustomSwitch(
+                    _autoReleaseEnabled,
+                    onChanged: (v) =>
+                        setState(() => _autoReleaseEnabled = v),
+                  ),
                 ],
               ),
               const SizedBox(height: 32),
@@ -446,13 +456,21 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           InkWell(
-            onTap: () {},
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: const [
-                Text('Edit Schedule', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 14)),
-                Icon(Icons.chevron_right, color: AppColors.primary, size: 18),
-              ],
+            onTap: _autoReleaseEnabled ? _openEditSchedule : null,
+            child: Opacity(
+              opacity: _autoReleaseEnabled ? 1.0 : 0.4,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text('Edit Schedule',
+                      style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14)),
+                  Icon(Icons.chevron_right,
+                      color: AppColors.primary, size: 18),
+                ],
+              ),
             ),
           ),
         ],
@@ -564,13 +582,17 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  // Custom switch to match the HTML look closely
-  Widget _buildCustomSwitch(bool isActive) {
-    return Container(
+  // Custom switch to match the HTML look closely. When [onChanged] is
+  // provided the whole pill becomes tappable and flips state; pass null to
+  // render a read-only switch (useful for "coming soon" rows).
+  Widget _buildCustomSwitch(bool isActive, {ValueChanged<bool>? onChanged}) {
+    final pill = Container(
       width: 48,
       height: 24,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.primaryContainer : AppColors.surfaceContainerHighest,
+        color: isActive
+            ? AppColors.primaryContainer
+            : AppColors.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Stack(
@@ -591,6 +613,52 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (onChanged == null) return pill;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!isActive),
+      child: pill,
+    );
+  }
+
+  void _openEditSchedule() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Edit Schedule',
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Auto-release scheduling will be configurable in an upcoming update.',
+                style: TextStyle(
+                    color: AppColors.onSurfaceVariant, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Got it'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

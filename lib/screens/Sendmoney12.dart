@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:micathon/models/money.dart';
 import 'package:micathon/models/profile.dart';
+import 'package:micathon/models/transaction.dart';
 import 'package:micathon/state/family_providers.dart';
 import 'package:micathon/state/profile_providers.dart';
 import 'package:micathon/widgets/avatar_utils.dart';
@@ -91,6 +92,17 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
           'Insufficient balance. You have ${Money.format(me.balanceMinor)}.');
       return;
     }
+    // Client-side pre-flight against the monthly allowance for children.
+    // Server-side enforcement (enforce_monthly_limit) is the source of truth;
+    // this check is just for fast UX — it'll never let an over-limit transfer
+    // through, but a borderline race is fine because the server will reject.
+    if (me.role == UserRole.child) {
+      final overLimit = _wouldExceedMonthlyLimit(me, amount);
+      if (overLimit != null) {
+        setState(() => _amountError = overLimit);
+        return;
+      }
+    }
     setState(() {
       _busy = true;
       _amountError = null;
@@ -120,6 +132,33 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Returns a user-facing error string if [amount] would push [me]'s
+  /// month-to-date outgoing total above their `monthly_limit_minor`.
+  /// Returns `null` when there's no limit set or the transfer fits under it.
+  ///
+  /// Month boundary is **calendar month UTC** to match the server-side
+  /// `enforce_monthly_limit` check exactly.
+  String? _wouldExceedMonthlyLimit(Profile me, BigInt amount) {
+    final controls =
+        ref.read(dependentControlsProvider(me.id)).asData?.value;
+    final limit = controls?.monthlyLimitMinor;
+    if (limit == null) return null;
+    final now = DateTime.now().toUtc();
+    final monthStartUtc = DateTime.utc(now.year, now.month, 1);
+    final all = ref.read(familyTransactionsProvider).asData?.value ??
+        const <LedgerEntry>[];
+    var mtd = BigInt.zero;
+    for (final t in all) {
+      if (t.senderId != me.id) continue;
+      if (t.createdAt.toUtc().isBefore(monthStartUtc)) continue;
+      mtd += t.amountMinor;
+    }
+    if (mtd + amount > limit) {
+      return 'This transfer exceeds your monthly limit of ${Money.format(limit)}.';
+    }
+    return null;
   }
 
   Future<void> _pickRecipient(BuildContext context) async {
@@ -428,5 +467,19 @@ String _describeError(Object e) {
     return 'That person is not in your family.';
   }
   if (msg.contains('Not authenticated')) return 'Please sign in again.';
+  // Surface the server-side monthly-limit rejection from
+  // public.enforce_monthly_limit. The function raises with a stable token
+  // (MONTHLY_LIMIT_EXCEEDED) plus the limit in minor units so we can
+  // re-render it with proper currency formatting on the client.
+  if (msg.contains('MONTHLY_LIMIT_EXCEEDED')) {
+    final match = RegExp(r'MONTHLY_LIMIT_EXCEEDED:(\d+)').firstMatch(msg);
+    if (match != null) {
+      final limitMinor = BigInt.tryParse(match.group(1)!);
+      if (limitMinor != null) {
+        return 'This transfer exceeds your monthly limit of ${Money.format(limitMinor)}.';
+      }
+    }
+    return 'This transfer exceeds your monthly limit.';
+  }
   return 'Could not send. Please try again.';
 }

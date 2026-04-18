@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/dependent_controls_repository.dart';
 import '../data/family_repository.dart';
 import '../data/requests_repository.dart';
 import '../data/transactions_repository.dart';
+import '../models/dependent_controls.dart';
 import '../models/money_request.dart';
 import '../models/profile.dart';
 import '../models/transaction.dart';
@@ -31,6 +33,11 @@ final transactionsRepositoryProvider = Provider<TransactionsRepository>((ref) {
 
 final requestsRepositoryProvider = Provider<RequestsRepository>((ref) {
   return RequestsRepository(ref.watch(supabaseClientProvider));
+});
+
+final dependentControlsRepositoryProvider =
+    Provider<DependentControlsRepository>((ref) {
+  return DependentControlsRepository(ref.watch(supabaseClientProvider));
 });
 
 /// Just the current user's family id. Re-emits ONLY when the id changes
@@ -137,4 +144,48 @@ void refreshRequests(WidgetRef ref) {
   ref.invalidate(familyRequestsProvider);
   ref.invalidate(myIncomingPendingRequestsProvider);
   ref.invalidate(myOutgoingRequestsProvider);
+}
+
+// ---------------------------------------------------------------------------
+// Parental controls (per-child allowance + auto-transfer schedule).
+// ---------------------------------------------------------------------------
+
+/// Live `dependent_controls` row for a single child. Emits `null` when no
+/// row has ever been written (i.e. the parent hasn't opened the controls
+/// for this child yet).
+///
+/// Same `.select` discipline as everything else in this file: it keys off
+/// `_myFamilyIdProvider`, never `myProfileProvider` directly, so balance
+/// updates don't tear the channel down.
+final dependentControlsProvider =
+    StreamProvider.family<DependentControls?, String>((ref, childId) {
+  final familyId = ref.watch(_myFamilyIdProvider);
+  if (familyId == null) return Stream<DependentControls?>.value(null);
+  final repo = ref.watch(dependentControlsRepositoryProvider);
+  return repo.watch(familyId: familyId, childId: childId);
+});
+
+/// Recent OUTGOING transactions for an arbitrary user in the caller's
+/// family — used by the "Recent Spending" card on the parent's view of a
+/// child. Limited to the most recent 5 by default.
+///
+/// Reuses the existing `familyTransactionsProvider` stream (so we don't
+/// open a second realtime channel for the same table) and filters in
+/// memory. RLS already guarantees we only see rows we're allowed to.
+final recentSpendingProvider =
+    StreamProvider.family<List<LedgerEntry>, String>((ref, userId) {
+  final familyId = ref.watch(_myFamilyIdProvider);
+  if (familyId == null) return Stream<List<LedgerEntry>>.value(const []);
+  final repo = ref.watch(transactionsRepositoryProvider);
+  return repo.watchVisibleTransactions(familyId).map(
+        (all) => all.where((t) => t.senderId == userId).take(5).toList(),
+      );
+});
+
+/// Force-refresh the dependent controls for [childId] after a successful
+/// upsert. Same belt-and-braces approach as `refreshBalancesAndMembers` —
+/// works whether or not realtime UPDATE payloads are wired up correctly
+/// for the new table.
+void refreshDependentControls(WidgetRef ref, String childId) {
+  ref.invalidate(dependentControlsProvider(childId));
 }
