@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:micathon/screens/signup.dart';
+import 'package:micathon/models/app_destination.dart';
+import 'package:micathon/screens/childhome5.dart';
 import 'package:micathon/screens/login0.dart';
 import 'package:micathon/screens/parent_home1.dart';
-import 'package:micathon/screens/childhome5.dart';
+import 'package:micathon/screens/pending_invite_screen.dart';
+import 'package:micathon/screens/signup.dart';
+import 'package:micathon/screens/splash_screen.dart';
+import 'package:micathon/state/auth_providers.dart';
+import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/state/router_provider.dart';
 
 const Color _kBackground = Color(0xFFFAF9F6);
 const Color _kPrimary = Color(0xFF00502C);
@@ -20,11 +27,11 @@ Future<void> main() async {
     anonKey: 'sb_publishable_rXETj8P-2B_t6cbK_pZo9Q_Wpi2BxgP',
   );
 
-  runApp(const MicathonApp());
+  runApp(const ProviderScope(child: MicathonApp()));
 }
 
-/// Top-level app that decides whether to show the sign-up/login screens or
-/// the role-specific home, based on the current Supabase auth session.
+/// Top-level app. The single MaterialApp owner; everything below is just a
+/// home widget tree driven by the [routerProvider].
 class MicathonApp extends StatelessWidget {
   const MicathonApp({super.key});
 
@@ -39,35 +46,44 @@ class MicathonApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: _kPrimary),
         useMaterial3: true,
       ),
-      home: const _AuthGate(),
+      home: const _Router(),
     );
   }
 }
 
-class _AuthGate extends StatelessWidget {
-  const _AuthGate();
+/// Watches [routerProvider] and renders the matching destination.
+///
+/// All onboarding state machinery lives in providers — this widget is a pure
+/// switch over the derived [AppDestination]. When the streamed profile
+/// updates (e.g. after `redeem_invitation` or `create_family`), the router
+/// re-derives and we swap children automatically.
+class _Router extends ConsumerWidget {
+  const _Router();
 
   @override
-  Widget build(BuildContext context) {
-    final auth = Supabase.instance.client.auth;
-
-    return StreamBuilder<AuthState>(
-      stream: auth.onAuthStateChange,
-      builder: (context, _) {
-        final session = auth.currentSession;
-        if (session == null) {
-          return const _UnauthFlow();
-        }
-        return const _RoleRouter();
-      },
-    );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final destination = ref.watch(routerProvider);
+    return switch (destination) {
+      UnauthDestination() => const _UnauthFlow(),
+      SplashDestination() => const SplashScreen(),
+      PendingInviteDestination() => const PendingInviteScreen(),
+      ParentHomeDestination() => const ParentHome(),
+      ChildHomeDestination() => const ChildHome(),
+      ProfileErrorDestination(message: final msg) => _RoleErrorScreen(
+          message: msg,
+          onRetry: () => ref.invalidate(myProfileProvider),
+          onSignOut: () =>
+              ref.read(supabaseClientProvider).auth.signOut(),
+        ),
+    };
   }
 }
 
-/// Unauthenticated flow: hosts the Sign Up and Login screens and toggles
-/// between them in place. Critically, this does NOT use Navigator.pushReplacement
-/// at the AuthGate level — that would tear out the AuthGate's home route and
-/// prevent the auth state listener from swapping in the authed UI.
+/// Unauthenticated flow: hosts the Login and SignUp screens and toggles
+/// between them in place. Critically, this does NOT use
+/// `Navigator.pushReplacement` at the router level — that would tear out the
+/// router widget tree and prevent the auth provider from swapping in the
+/// authed UI on a successful sign-in.
 class _UnauthFlow extends StatefulWidget {
   const _UnauthFlow();
 
@@ -86,77 +102,6 @@ class _UnauthFlowState extends State<_UnauthFlow> {
       return LoginScreen(onSignUpTap: _toggle);
     }
     return SignUpScreen(onLoginTap: _toggle);
-  }
-}
-
-/// Looks up the signed-in user's role via the `me` view and routes them to
-/// the appropriate home screen.
-class _RoleRouter extends StatefulWidget {
-  const _RoleRouter();
-
-  @override
-  State<_RoleRouter> createState() => _RoleRouterState();
-}
-
-class _RoleRouterState extends State<_RoleRouter> {
-  late Future<String?> _roleFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _roleFuture = _fetchRole();
-  }
-
-  Future<String?> _fetchRole() async {
-    final client = Supabase.instance.client;
-    final data = await client.from('me').select('role').maybeSingle();
-    if (data == null) return null;
-    return data['role'] as String?;
-  }
-
-  void _retry() {
-    setState(() {
-      _roleFuture = _fetchRole();
-    });
-  }
-
-  Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: _roleFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            backgroundColor: _kBackground,
-            body: Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(_kPrimary),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasError || snapshot.data == null) {
-          return _RoleErrorScreen(
-            message: snapshot.hasError
-                ? 'Could not load your profile.\n${snapshot.error}'
-                : 'No profile found for this account.',
-            onRetry: _retry,
-            onSignOut: _signOut,
-          );
-        }
-
-        final role = snapshot.data;
-        if (role == 'parent') {
-          return const ParentHome();
-        }
-        return const ChildHome();
-      },
-    );
   }
 }
 

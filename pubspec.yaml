@@ -38,6 +38,9 @@ dependencies:
   # Supabase auth & database client.
   supabase_flutter: ^2.12.4
 
+  # Riverpod for app-wide reactive state (auth session, profile stream, router).
+  flutter_riverpod: ^2.6.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

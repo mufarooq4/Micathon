@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:micathon/screens/parent_home1.dart';
 import 'package:micathon/screens/parent_view_family_tree3.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
 //   runApp(const Familyactivity());
@@ -254,7 +255,15 @@ class RecentActivityScreen extends StatelessWidget {
                     );
                   },
                 ),
-                _buildNavItem(Icons.settings_outlined, 'SETTINGS'),
+                _buildNavItem(
+                  Icons.settings_outlined,
+                  'SETTINGS',
+                  onTap: () {
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
+                  },
+                ),
               ],
             ),
           ),

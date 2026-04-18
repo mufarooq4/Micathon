@@ -27,11 +27,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<Map<String, dynamic>?> _loadProfile() async {
     final client = Supabase.instance.client;
+    final uid = client.auth.currentUser?.id;
+    if (uid == null) return null;
     final data = await client
-        .from('me')
-        .select('full_name, email, age, role, date_of_birth')
+        .from('profiles')
+        .select('full_name, email, role, date_of_birth')
+        .eq('id', uid)
         .maybeSingle();
-    return data;
+    if (data == null) return null;
+    final dobRaw = data['date_of_birth'];
+    int? age;
+    if (dobRaw is String && dobRaw.isNotEmpty) {
+      final dob = DateTime.tryParse(dobRaw);
+      if (dob != null) {
+        final now = DateTime.now();
+        age = now.year - dob.year;
+        if (now.month < dob.month ||
+            (now.month == dob.month && now.day < dob.day)) {
+          age = age - 1;
+        }
+      }
+    }
+    return {...data, 'age': age};
   }
 
   Future<void> _confirmAndSignOut() async {
@@ -84,8 +101,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _signingOut = true);
     try {
       await Supabase.instance.client.auth.signOut();
-      // The root _AuthGate listens to auth state and will swap to the
-      // unauthenticated flow automatically. Nothing else to do here.
+      // The router provider watches auth state and swaps the tree under
+      // the root navigator to the unauth flow. Settings was pushed via
+      // the root navigator though, so it's still sitting on top — pop it
+      // back to the root so the user actually sees the swap.
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
+      return;
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

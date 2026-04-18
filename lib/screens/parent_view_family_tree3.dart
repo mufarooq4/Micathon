@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:micathon/screens/Familyactivity2.dart';
-import 'package:micathon/screens/add_dependent_search9.dart';
+import 'package:micathon/screens/invite_dependent_screen.dart';
 import 'package:micathon/screens/manage_dependent4.dart';
 import 'package:micathon/screens/parent_home1.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 void main() {
   runApp(const ParentViewFamilyTree());
@@ -222,7 +223,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onPressed: () {
                     Navigator.of(context, rootNavigator: true).push(
                       MaterialPageRoute(
-                        builder: (_) => const Add_dependent_search(),
+                        builder: (_) => const InviteDependentScreen(),
                       ),
                     );
                   },
@@ -426,6 +427,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         } else if (index == 1) {
           navigator.pushReplacement(
             MaterialPageRoute(builder: (_) => const Familyactivity()),
+          );
+        } else if (index == 3) {
+          navigator.push(
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
           );
         }
       },
