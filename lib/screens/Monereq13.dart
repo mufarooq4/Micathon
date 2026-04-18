@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/childhome5.dart';
+import 'package:micathon/screens/child_activity6.dart';
+import 'package:micathon/screens/child_view_of_family_tree7.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
 //   runApp(const RequestMoneyApp());
@@ -263,10 +267,10 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_outlined, 'Home', false),
-              _buildNavItem(Icons.history, 'Activity', false),
-              _buildNavItem(Icons.account_tree, 'Tree', true),
-              _buildNavItem(Icons.settings_outlined, 'Settings', false),
+              _buildNavItem(Icons.home_outlined, 'Home', false, tabIndex: 0),
+              _buildNavItem(Icons.history, 'Activity', false, tabIndex: 1),
+              _buildNavItem(Icons.account_tree, 'Tree', true, tabIndex: 2),
+              _buildNavItem(Icons.settings_outlined, 'Settings', false, tabIndex: 3),
             ],
           ),
         ),
@@ -274,14 +278,48 @@ class _RequestMoneyScreenState extends State<RequestMoneyScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4)),
-        const SizedBox(height: 4),
-        Text(label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4))),
-      ],
+  Widget _buildNavItem(
+    IconData icon,
+    String label,
+    bool isActive, {
+    required int tabIndex,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        if (isActive) return;
+        if (tabIndex == 0) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
+            (route) => false,
+          );
+        } else if (tabIndex == 1) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ChildActivityScreen()),
+            (route) => false,
+          );
+        } else if (tabIndex == 2) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const ChildDashboardScreen()),
+            (route) => false,
+          );
+        } else if (tabIndex == 3) {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          );
+        }
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4)),
+            const SizedBox(height: 4),
+            Text(label.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isActive ? AppColors.primary : AppColors.onSurface.withOpacity(0.4))),
+          ],
+        ),
+      ),
     );
   }
 }

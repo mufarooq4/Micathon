@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/Sendmoney12.dart';
+import 'package:micathon/screens/Monereq13.dart';
 
 // void main() {
 //   runApp(const ViewFamilyMemberChild());
@@ -93,7 +95,7 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
       titleSpacing: 24,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back, color: AppColors.onSurface),
-        onPressed: () {},
+        onPressed: () => Navigator.of(context).maybePop(),
       ),
       title: Row(
         children: [
@@ -209,7 +211,13 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SendMoneyScreen(),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.send, size: 18),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -226,7 +234,13 @@ class _FamilyMemberProfileScreenState extends State<FamilyMemberProfileScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const RequestMoneyScreen(),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.call_received, size: 18),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.surfaceContainerHighest,

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/childhome5.dart';
+import 'package:micathon/screens/child_view_of_family_tree7.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
 //   runApp(const ChildActivity());
@@ -41,6 +44,15 @@ class ChildActivityScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFFAF9F6).withOpacity(0.9),
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: primary),
+          tooltip: 'Back to Home',
+          onPressed: () {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
+            );
+          },
+        ),
         title: Row(
           children: [
             Container(
@@ -222,10 +234,10 @@ class ChildActivityScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.home_outlined, 'HOME'),
-                _buildNavItem(Icons.history, 'ACTIVITY', isActive: true),
-                _buildNavItem(Icons.account_tree_outlined, 'TREE'),
-                _buildNavItem(Icons.settings_outlined, 'SETTINGS'),
+                _buildNavItem(context, Icons.home_outlined, 'HOME', tabIndex: 0),
+                _buildNavItem(context, Icons.history, 'ACTIVITY', tabIndex: 1, isActive: true),
+                _buildNavItem(context, Icons.account_tree_outlined, 'TREE', tabIndex: 2),
+                _buildNavItem(context, Icons.settings_outlined, 'SETTINGS', tabIndex: 3),
               ],
             ),
           ),
@@ -408,9 +420,30 @@ class ChildActivityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, {bool isActive = false}) {
+  Widget _buildNavItem(
+    BuildContext context,
+    IconData icon,
+    String label, {
+    required int tabIndex,
+    bool isActive = false,
+  }) {
     return InkWell(
-      onTap: () {},
+      onTap: () {
+        if (isActive) return;
+        if (tabIndex == 0) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
+          );
+        } else if (tabIndex == 2) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ChildDashboardScreen()),
+          );
+        } else if (tabIndex == 3) {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          );
+        }
+      },
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

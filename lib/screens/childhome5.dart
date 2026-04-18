@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/child_activity6.dart';
+import 'package:micathon/screens/child_view_of_family_tree7.dart';
 import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
@@ -519,7 +521,16 @@ class ChildHomeScreen extends StatelessWidget {
         elevation: 0,
         currentIndex: 0,
         onTap: (index) {
-          if (index == 3) {
+          if (index == 0) return;
+          if (index == 1) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const ChildActivityScreen()),
+            );
+          } else if (index == 2) {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const ChildDashboardScreen()),
+            );
+          } else if (index == 3) {
             Navigator.of(context, rootNavigator: true).push(
               MaterialPageRoute(builder: (_) => const SettingsScreen()),
             );

@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/ViewFamilyMemberChild8.dart';
+import 'package:micathon/screens/childhome5.dart';
+import 'package:micathon/screens/child_activity6.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 void main() {
   runApp(const ChildViewFamilyTree());
@@ -40,6 +44,15 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
         backgroundColor: const Color(0xFFFAF9F6).withOpacity(0.95),
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF00502C)),
+          tooltip: 'Back to Home',
+          onPressed: () {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
+            );
+          },
+        ),
         title: Row(
           children: [
             Container(
@@ -152,6 +165,13 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
                         role: 'Parent',
                         initial: 'D',
                         avatarColor: const Color(0xFF46654F),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const FamilyMemberProfileScreen(),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 24),
                       
@@ -230,21 +250,28 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     required String role,
     required String initial,
     required Color avatarColor,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00502C).withOpacity(0.03),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF00502C).withOpacity(0.03),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
+          child: Row(
         children: [
           // Avatar
           Container(
@@ -314,6 +341,8 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
           ),
         ],
       ),
+        ),
+      ),
     );
   }
 
@@ -323,9 +352,23 @@ class _ChildDashboardScreenState extends State<ChildDashboardScreen> {
     
     return InkWell(
       onTap: () {
+        if (isSelected) return;
         setState(() {
           _selectedIndex = index;
         });
+        if (index == 0) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ChildHomeScreen()),
+          );
+        } else if (index == 1) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const ChildActivityScreen()),
+          );
+        } else if (index == 3) {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          );
+        }
       },
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(
