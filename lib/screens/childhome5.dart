@@ -37,6 +37,8 @@ class ChildHomeScreen extends ConsumerWidget {
           children: [
             _ChildBalanceHero(profile: profile),
             const SizedBox(height: 32),
+            const _LimitsSection(),
+            const SizedBox(height: 32),
             const _IncomingRequestsSection(),
             const SizedBox(height: 32),
             const _MyRequestsSection(),
@@ -814,6 +816,276 @@ class _ErrorBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Spending Controls — read-only mirror of the parent's slider + schedule.
+//
+// The data comes from the same dependent_controls table the parent writes
+// to from ViewFamilyMemberChild8.dart. RLS lets any same-family member
+// SELECT, so the child reading their own row is safe and supabase realtime
+// pushes updates the moment the parent moves the slider.
+// ---------------------------------------------------------------------------
+
+const Color _limitsGreen = Color(0xFF006B3C);
+const Color _limitsGreenBg = Color(0xFFD9EEDF);
+const Color _limitsTextDark = Color(0xFF0F172A);
+const Color _limitsTextGrey = Color(0xFF6B7280);
+
+class _LimitsSection extends ConsumerWidget {
+  const _LimitsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(myProfileProvider).asData?.value;
+    if (profile == null) return const SizedBox.shrink();
+    // Defensive: this screen is wired up only for children, but if it ever
+    // gets dropped into a different navigator we don't want a parent
+    // viewing their own row of controls here.
+    if (profile.role != UserRole.child) return const SizedBox.shrink();
+
+    final controlsAsync = ref.watch(dependentControlsProvider(profile.id));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Spending Controls',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: _limitsTextDark,
+          ),
+        ),
+        const SizedBox(height: 8),
+        controlsAsync.when(
+          loading: () => Container(
+            padding: const EdgeInsets.symmetric(vertical: 32),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.grey[100]!),
+            ),
+            child: const Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+          error: (e, _) => _ErrorBanner(
+            message:
+                'Could not load your spending limits. ${_extractPostgrestMessage(e.toString())}',
+          ),
+          data: (controls) {
+            final hasLimit = controls?.monthlyLimitMinor != null;
+            final hasSchedule = controls != null &&
+                controls.autoTransferEnabled &&
+                controls.autoTransferAmountMinor != null &&
+                controls.autoTransferDay != null;
+
+            if (!hasLimit && !hasSchedule) {
+              return _LimitsCardShell(
+                child: Text(
+                  "Your parent hasn't set any limits or scheduled transfers yet.",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: _limitsTextGrey,
+                    height: 1.4,
+                  ),
+                ),
+              );
+            }
+
+            return _LimitsCardShell(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (hasLimit)
+                    _LimitTile(amountMinor: controls!.monthlyLimitMinor!),
+                  if (hasLimit && hasSchedule) const SizedBox(height: 12),
+                  if (hasSchedule)
+                    _AutoTransferTile(
+                      amountMinor: controls.autoTransferAmountMinor!,
+                      day: controls.autoTransferDay!,
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _LimitsCardShell extends StatelessWidget {
+  const _LimitsCardShell({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey[100]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _LimitTile extends StatelessWidget {
+  const _LimitTile({required this.amountMinor});
+  final BigInt amountMinor;
+
+  @override
+  Widget build(BuildContext context) {
+    final paused = amountMinor == BigInt.zero;
+    return Row(
+      children: [
+        const CircleAvatar(
+          backgroundColor: _limitsGreenBg,
+          radius: 22,
+          child: Icon(Icons.tune, color: _limitsGreen, size: 22),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'MONTHLY LIMIT',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: _limitsTextGrey,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                Money.format(amountMinor),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: _limitsTextDark,
+                ),
+              ),
+              if (paused) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '(spending paused)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.red.shade400,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AutoTransferTile extends StatelessWidget {
+  const _AutoTransferTile({required this.amountMinor, required this.day});
+  final BigInt amountMinor;
+  final int day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const CircleAvatar(
+          backgroundColor: _limitsGreenBg,
+          radius: 22,
+          child: Icon(Icons.update, color: _limitsGreen, size: 22),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'WEEKLY ALLOWANCE',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                  color: _limitsTextGrey,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                Money.format(amountMinor),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: _limitsTextDark,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.calendar_today,
+                      size: 14, color: _limitsTextGrey),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Every ${_dayName(day)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _limitsTextGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Postgres `extract(dow from ...)` convention: 0 = Sunday … 6 = Saturday.
+/// Kept private so this file remains self-contained — there's a sibling
+/// helper in ViewFamilyMemberChild8.dart but we deliberately don't share it.
+String _dayName(int dow) {
+  const names = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ];
+  if (dow < 0 || dow > 6) return 'Unknown';
+  return names[dow];
 }
 
 String _formatTimestamp(DateTime ts) {

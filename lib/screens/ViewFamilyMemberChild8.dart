@@ -696,7 +696,7 @@ const Color _greenAccent = AppColors.primary;
 const Color _greenAccentBg = AppColors.primaryFixed;
 const Color _textGrey = AppColors.onSurfaceVariant;
 
-/// 0 ≤ value ≤ 1000 in Rs. (major units), rounded to nearest 10. Backed by
+/// 0 ≤ value ≤ 10000 in Rs. (major units), rounded to nearest 100. Backed by
 /// `BigInt` paisas in the database via `monthly_limit_minor`.
 class _AllowanceCard extends ConsumerStatefulWidget {
   const _AllowanceCard({required this.child});
@@ -790,7 +790,7 @@ class _AllowanceCardState extends ConsumerState<_AllowanceCard> {
           final serverMajor = (controls?.monthlyLimitMinor != null)
               ? (controls!.monthlyLimitMinor! ~/ BigInt.from(100)).toDouble()
               : 500.0;
-          final draft = _draftMajor ?? serverMajor.clamp(0, 1000).toDouble();
+          final draft = _draftMajor ?? serverMajor.clamp(0, 10000).toDouble();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -817,7 +817,7 @@ class _AllowanceCardState extends ConsumerState<_AllowanceCard> {
                     ),
                   ),
                   Text(
-                    'Rs. ${draft.round()}',
+                    'Rs. ${_formatRupeesWhole(draft.round())}',
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
@@ -843,8 +843,8 @@ class _AllowanceCardState extends ConsumerState<_AllowanceCard> {
                 child: Slider(
                   value: draft,
                   min: 0,
-                  max: 1000,
-                  divisions: 100, // Rs. 10 increments
+                  max: 10000,
+                  divisions: 100, // Rs. 100 increments at this scale
                   onChanged: _onSliderChanged,
                 ),
               ),
@@ -853,7 +853,7 @@ class _AllowanceCardState extends ConsumerState<_AllowanceCard> {
                 children: [
                   Text('Rs. 0',
                       style: TextStyle(color: _textGrey, fontSize: 12)),
-                  Text('Rs. 1000',
+                  Text('Rs. 10,000',
                       style: TextStyle(color: _textGrey, fontSize: 12)),
                 ],
               ),
@@ -1525,6 +1525,19 @@ String _dayName(int dow) {
   ];
   if (dow < 0 || dow > 6) return '—';
   return names[dow];
+}
+
+/// Whole-rupee formatter with thousands separators: 10000 -> "10,000".
+/// Used for the live slider readout where Money.format would also add a
+/// '.00' suffix that doesn't fit the compact display.
+String _formatRupeesWhole(int rupees) {
+  final s = rupees.toString();
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
 }
 
 String _formatRelative(DateTime ts) {
