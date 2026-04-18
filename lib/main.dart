@@ -25,6 +25,14 @@ Future<void> main() async {
   await Supabase.initialize(
     url: 'https://gopjyaqryeppewlpbugf.supabase.co',
     anonKey: 'sb_publishable_rXETj8P-2B_t6cbK_pZo9Q_Wpi2BxgP',
+    // Give the realtime channel join handshake more headroom on slow /
+    // backgrounded connections — the default of 10s often fires
+    // `RealtimeSubscribeException(timedOut)` after the app has been idle.
+    // Repository streams also wrap `.stream()` in `resilientRealtimeStream`
+    // so any timeout that does slip through silently re-subscribes.
+    realtimeClientOptions: const RealtimeClientOptions(
+      timeout: Duration(seconds: 30),
+    ),
   );
 
   runApp(const ProviderScope(child: MicathonApp()));

@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/transaction.dart';
+import 'realtime_utils.dart';
 
 /// Reads of `public.transactions` and the `transfer_money` RPC.
 ///
@@ -17,12 +18,12 @@ class TransactionsRepository {
   /// For a parent this is the entire family ledger; for a child this is
   /// just their own personal flow (RLS does the filtering).
   Stream<List<LedgerEntry>> watchVisibleTransactions(String familyId) {
-    return _client
+    return resilientRealtimeStream(() => _client
         .from('transactions')
         .stream(primaryKey: ['id'])
         .eq('family_id', familyId)
         .order('created_at', ascending: false)
-        .map((rows) => rows.map(LedgerEntry.fromMap).toList());
+        .map((rows) => rows.map(LedgerEntry.fromMap).toList()));
   }
 
   /// Newest-first stream of transactions where [userId] is either sender

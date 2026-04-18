@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/dependent_controls.dart';
+import 'realtime_utils.dart';
 
 /// Reads of `public.dependent_controls` and the `upsert_dependent_controls`
 /// RPC. RLS gates writes to parents in the same family; SELECT is allowed
@@ -25,18 +26,18 @@ class DependentControlsRepository {
     required String familyId,
     required String childId,
   }) {
-    return _client
-        .from('dependent_controls')
-        .stream(primaryKey: ['family_id', 'child_id'])
-        .eq('family_id', familyId)
-        .map((rows) {
-      for (final row in rows) {
-        if (row['child_id'] == childId) {
-          return DependentControls.fromMap(row);
-        }
-      }
-      return null;
-    });
+    return resilientRealtimeStream(() => _client
+            .from('dependent_controls')
+            .stream(primaryKey: ['family_id', 'child_id'])
+            .eq('family_id', familyId)
+            .map((rows) {
+          for (final row in rows) {
+            if (row['child_id'] == childId) {
+              return DependentControls.fromMap(row);
+            }
+          }
+          return null;
+        }));
   }
 
   /// Create or update the controls row for [childId]. The caller MUST be a

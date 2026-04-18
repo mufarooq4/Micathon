@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/profile.dart';
+import 'realtime_utils.dart';
 
 /// All Supabase access for the `public.profiles` table goes through here.
 ///
@@ -19,14 +20,14 @@ class ProfilesRepository {
   ///
   /// Closes implicitly when the caller cancels the subscription.
   Stream<Profile?> watchMe(String userId) {
-    return _client
-        .from('profiles')
-        .stream(primaryKey: ['id'])
-        .eq('id', userId)
-        .map((rows) {
-      if (rows.isEmpty) return null;
-      return Profile.fromMap(rows.first);
-    });
+    return resilientRealtimeStream(() => _client
+            .from('profiles')
+            .stream(primaryKey: ['id'])
+            .eq('id', userId)
+            .map((rows) {
+          if (rows.isEmpty) return null;
+          return Profile.fromMap(rows.first);
+        }));
   }
 
   /// One-shot fallback fetch used by the splash race-window logic.

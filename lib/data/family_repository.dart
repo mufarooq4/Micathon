@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/profile.dart';
+import 'realtime_utils.dart';
 
 /// Reads of `public.profiles` rows OTHER than the caller's own (those go
 /// through `ProfilesRepository.watchMe`).
@@ -17,11 +18,11 @@ class FamilyRepository {
   /// caller). Emits in name order. Re-emits on any insert/update/delete in
   /// that family because of `replica identity full`.
   Stream<List<Profile>> watchFamilyMembers(String familyId) {
-    return _client
+    return resilientRealtimeStream(() => _client
         .from('profiles')
         .stream(primaryKey: ['id'])
         .eq('family_id', familyId)
         .order('full_name')
-        .map((rows) => rows.map(Profile.fromMap).toList());
+        .map((rows) => rows.map(Profile.fromMap).toList()));
   }
 }

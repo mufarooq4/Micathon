@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/money_request.dart';
+import 'realtime_utils.dart';
 
 /// Reads of `public.requests` and the `create_request` / `act_on_request`
 /// RPCs. All visibility flows through the `requests_family_select` RLS
@@ -14,12 +15,12 @@ class RequestsRepository {
   /// family. Parents see all family requests, children only see ones
   /// they're a party to (per RLS).
   Stream<List<MoneyRequest>> watchVisibleRequests(String familyId) {
-    return _client
+    return resilientRealtimeStream(() => _client
         .from('requests')
         .stream(primaryKey: ['id'])
         .eq('family_id', familyId)
         .order('created_at', ascending: false)
-        .map((rows) => rows.map(MoneyRequest.fromMap).toList());
+        .map((rows) => rows.map(MoneyRequest.fromMap).toList()));
   }
 
   /// Pending requests directed at [parentId] (the parent who needs to
