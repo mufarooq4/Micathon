@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/add_dependent_configuration10.dart';
 
 void main() {
   runApp(const Add_dependent_search());
@@ -160,7 +161,13 @@ class AddDependantScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context, rootNavigator: true).push(
+                        MaterialPageRoute(
+                          builder: (_) => const Add_dependent_configuration(),
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: forest900,
                       foregroundColor: stone50,

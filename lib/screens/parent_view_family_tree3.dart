@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:micathon/screens/Familyactivity2.dart';
+import 'package:micathon/screens/add_dependent_search9.dart';
 import 'package:micathon/screens/manage_dependent4.dart';
 import 'package:micathon/screens/parent_home1.dart';
 
@@ -218,7 +219,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               // 3. Primary CTA
               Center(
                 child: ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(
+                        builder: (_) => const Add_dependent_search(),
+                      ),
+                    );
+                  },
                   icon: const Icon(Icons.add, color: Colors.white),
                   label: const Text(
                     'Add Dependant',
