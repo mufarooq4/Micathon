@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/Familyactivity2.dart';
+import 'package:micathon/screens/manage_dependent4.dart';
+import 'package:micathon/screens/parent_home1.dart';
 
 void main() {
   runApp(const ParentViewFamilyTree());
@@ -174,6 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         initial: 'S',
                         avatarColor: const Color(0xFF46654F),
                         isWarning: false,
+                        onTap: () => _openManageDependent(context),
                       ),
                       const SizedBox(height: 24),
                       
@@ -189,6 +193,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             initial: 'L',
                             avatarColor: const Color(0xFFBA1A1A), // Error Red
                             isWarning: true,
+                            onTap: () => _openManageDependent(context),
                           ),
                         ),
                       ),
@@ -202,6 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         initial: 'M',
                         avatarColor: const Color(0xFF974147),
                         isWarning: false,
+                        onTap: () => _openManageDependent(context),
                       ),
                     ],
                   ),
@@ -271,6 +277,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  void _openManageDependent(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (_) => const Manage_dependent()),
+    );
+  }
+
   // Helper widget for dependent cards
   Widget _buildDependantCard({
     required String name,
@@ -279,8 +291,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required String initial,
     required Color avatarColor,
     required bool isWarning,
+    VoidCallback? onTap,
   }) {
-    return Container(
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -378,6 +397,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
+        ),
+      ),
     );
   }
 
@@ -390,6 +411,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         setState(() {
           _selectedIndex = index;
         });
+        final navigator = Navigator.of(context, rootNavigator: true);
+        if (index == 0) {
+          navigator.pushReplacement(
+            MaterialPageRoute(builder: (_) => const ParentHome()),
+          );
+        } else if (index == 1) {
+          navigator.pushReplacement(
+            MaterialPageRoute(builder: (_) => const Familyactivity()),
+          );
+        }
       },
       borderRadius: BorderRadius.circular(16),
       child: AnimatedContainer(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/parent_home1.dart';
+import 'package:micathon/screens/parent_view_family_tree3.dart';
 
-void main() {
-  runApp(const Familyactivity());
-}
+// void main() {
+//   runApp(const Familyactivity());
+// }
 
 class Familyactivity extends StatelessWidget {
   const Familyactivity({super.key});
@@ -232,9 +234,26 @@ class RecentActivityScreen extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildNavItem(Icons.home_outlined, 'HOME'),
+                _buildNavItem(
+                  Icons.home_outlined,
+                  'HOME',
+                  onTap: () {
+                    Navigator.of(context, rootNavigator: true).pushReplacement(
+                      MaterialPageRoute(builder: (_) => const ParentHome()),
+                    );
+                  },
+                ),
                 _buildNavItem(Icons.history, 'ACTIVITY', isActive: true),
-                _buildNavItem(Icons.account_tree_outlined, 'TREE'),
+                _buildNavItem(
+                  Icons.account_tree_outlined,
+                  'TREE',
+                  onTap: () {
+                    Navigator.of(context, rootNavigator: true).pushReplacement(
+                      MaterialPageRoute(
+                          builder: (_) => const ParentViewFamilyTree()),
+                    );
+                  },
+                ),
                 _buildNavItem(Icons.settings_outlined, 'SETTINGS'),
               ],
             ),
@@ -418,9 +437,10 @@ class RecentActivityScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, {bool isActive = false}) {
+  Widget _buildNavItem(IconData icon, String label,
+      {bool isActive = false, VoidCallback? onTap}) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap ?? () {},
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),

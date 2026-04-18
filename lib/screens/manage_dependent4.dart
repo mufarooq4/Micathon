@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/Familyactivity2.dart';
+import 'package:micathon/screens/parent_home1.dart';
+import 'package:micathon/screens/parent_view_family_tree3.dart';
 
 // void main() {
 //   runApp(const Manage_dependent());
@@ -67,7 +70,7 @@ class DashboardScreen extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
     );
   }
 
@@ -592,7 +595,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  Widget _buildBottomNavigationBar(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.background.withOpacity(0.9),
@@ -611,9 +614,37 @@ class DashboardScreen extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(Icons.home_outlined, 'Home', false),
-              _buildNavItem(Icons.history, 'Activity', false),
-              _buildNavItem(Icons.account_tree, 'Tree', true), // Active item
+              _buildNavItem(
+                Icons.home_outlined,
+                'Home',
+                false,
+                onTap: () {
+                  Navigator.of(context, rootNavigator: true).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const ParentHome()),
+                  );
+                },
+              ),
+              _buildNavItem(
+                Icons.history,
+                'Activity',
+                false,
+                onTap: () {
+                  Navigator.of(context, rootNavigator: true).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const Familyactivity()),
+                  );
+                },
+              ),
+              _buildNavItem(
+                Icons.account_tree,
+                'Tree',
+                true,
+                onTap: () {
+                  Navigator.of(context, rootNavigator: true).pushReplacement(
+                    MaterialPageRoute(
+                        builder: (_) => const ParentViewFamilyTree()),
+                  );
+                },
+              ), // Active item
               _buildNavItem(Icons.settings_outlined, 'Settings', false),
             ],
           ),
@@ -622,8 +653,12 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Container(
+  Widget _buildNavItem(IconData icon, String label, bool isActive,
+      {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: isActive
           ? BoxDecoration(
@@ -649,6 +684,7 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

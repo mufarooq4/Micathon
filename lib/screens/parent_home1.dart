@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/Familyactivity2.dart';
+import 'package:micathon/screens/parent_view_family_tree3.dart';
 
 // void main() {
 //   runApp(const ParentHome());
@@ -46,7 +48,7 @@ class HomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: _buildBottomNavBar(context),
     );
   }
 
@@ -367,7 +369,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavBar() {
+  Widget _buildBottomNavBar(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -383,6 +385,20 @@ class HomeScreen extends StatelessWidget {
         unselectedFontSize: 11,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
         elevation: 0,
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 0) return;
+          final navigator = Navigator.of(context, rootNavigator: true);
+          if (index == 1) {
+            navigator.pushReplacement(
+              MaterialPageRoute(builder: (_) => const Familyactivity()),
+            );
+          } else if (index == 2) {
+            navigator.pushReplacement(
+              MaterialPageRoute(builder: (_) => const ParentViewFamilyTree()),
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Padding(
