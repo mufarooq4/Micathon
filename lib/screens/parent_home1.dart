@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:micathon/screens/Familyactivity2.dart';
 import 'package:micathon/screens/parent_view_family_tree3.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
 //   runApp(const ParentHome());
@@ -396,6 +397,10 @@ class HomeScreen extends StatelessWidget {
           } else if (index == 2) {
             navigator.pushReplacement(
               MaterialPageRoute(builder: (_) => const ParentViewFamilyTree()),
+            );
+          } else if (index == 3) {
+            navigator.push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
             );
           }
         },

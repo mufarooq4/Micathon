@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:micathon/screens/settings_screen.dart';
 
 // void main() {
 //   runApp(const ChildHome());
@@ -48,7 +49,7 @@ class ChildHomeScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
+      bottomNavigationBar: _buildBottomNavBar(context),
     );
   }
 
@@ -500,7 +501,7 @@ class ChildHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomNavBar() {
+  Widget _buildBottomNavBar(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -516,6 +517,14 @@ class ChildHomeScreen extends StatelessWidget {
         unselectedFontSize: 11,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
         elevation: 0,
+        currentIndex: 0,
+        onTap: (index) {
+          if (index == 3) {
+            Navigator.of(context, rootNavigator: true).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            );
+          }
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Padding(

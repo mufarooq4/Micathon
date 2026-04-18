@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'package:micathon/screens/signup.dart';
+
 // Color palette consistent with previous screens
 class AppColors {
   static const Color background = Color(0xFFFAF9F6);
@@ -35,7 +37,13 @@ class KafeelLoginApp extends StatelessWidget {
 }
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.onSignUpTap});
+
+  /// Optional callback used when this screen is hosted inside the AuthGate's
+  /// in-place toggle. When provided, "Sign up" calls this instead of pushing
+  /// a new route, which prevents the Navigator from clobbering the AuthGate's
+  /// home route.
+  final VoidCallback? onSignUpTap;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -81,47 +89,30 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _signUp() async {
-    if (_isLoading) return;
-    if (!_formKey.currentState!.validate()) return;
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-
-    try {
-      final response = await _supabase.auth.signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-
-      if (!mounted) return;
-
-      // If email confirmation is enabled in Supabase, no session is returned.
-      if (response.session == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Account created. Please check your email to confirm before logging in.'),
-          ),
-        );
-      }
-    } on AuthException catch (e) {
-      _showError(e.message);
-    } catch (_) {
-      _showError('Sign-up failed. Please try again.');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+  void _goToSignUp() {
+    final cb = widget.onSignUpTap;
+    if (cb != null) {
+      cb();
+      return;
     }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const SignUpScreen()),
+    );
   }
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
-    );
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
   }
 
   String? _validateEmail(String? value) {
@@ -448,7 +439,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         TextButton(
-          onPressed: _isLoading ? null : _signUp,
+          onPressed: _isLoading ? null : _goToSignUp,
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
             minimumSize: const Size(0, 0),
