@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class SettingsScreen extends StatefulWidget {
+import '../state/auth_providers.dart';
+import '../state/profile_providers.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   static const Color _background = Color(0xFFFAF9F3);
   static const Color _primary = Color(0xFF006B3C);
   static const Color _onSurface = Color(0xFF0F172A);
@@ -99,14 +103,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _signOut() async {
     if (_signingOut) return;
     setState(() => _signingOut = true);
+    // Pop pushed routes (Settings was pushed via the root navigator on top
+    // of the home tree) before we touch auth, so the screen the user lands
+    // on is whatever the router decides — not Settings.
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    rootNav.popUntil((r) => r.isFirst);
     try {
-      await Supabase.instance.client.auth.signOut();
-      // The router provider watches auth state and swaps the tree under
-      // the root navigator to the unauth flow. Settings was pushed via
-      // the root navigator though, so it's still sitting on top — pop it
-      // back to the root so the user actually sees the swap.
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).popUntil((r) => r.isFirst);
+      // `local` scope clears the local session and emits the signedOut
+      // event synchronously, without waiting on a network round-trip to
+      // invalidate the refresh token server-side. On a flaky connection
+      // the default `global` scope can hang for the full HTTP timeout
+      // before the auth-state event ever fires, leaving the user staring
+      // at the authed home.
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      // Belt-and-braces: force every provider that derives from auth
+      // state to re-evaluate. Without this, in some supabase_flutter
+      // versions the `onAuthStateChange` event for signedOut isn't
+      // delivered to existing listeners until the next tick — and the
+      // user is left on the authed Home screen.
+      ref.invalidate(authStateChangesProvider);
+      ref.invalidate(myProfileProvider);
       return;
     } catch (e) {
       if (!mounted) return;

@@ -116,3 +116,25 @@ final myOutgoingRequestsProvider =
   final repo = ref.watch(requestsRepositoryProvider);
   return repo.watchOutgoing(familyId: familyId, userId: userId);
 });
+
+/// Force a fresh fetch of balances and family member rows.
+///
+/// We call this after any write that changes balances (transfer, approve a
+/// request) because Supabase Realtime UPDATE events on `public.profiles`
+/// only deliver if Realtime is enabled for the table AND the table has
+/// `REPLICA IDENTITY FULL`. If either is missing, `.stream()` will sit on
+/// stale rows forever. Invalidating these two providers triggers a fresh
+/// SELECT through the same stream subscription path, so the user sees the
+/// new balance immediately whether Realtime is wired up or not.
+void refreshBalancesAndMembers(WidgetRef ref) {
+  ref.invalidate(myProfileProvider);
+  ref.invalidate(familyMembersProvider);
+}
+
+/// Same idea for request-list screens after create / approve / decline /
+/// cancel actions.
+void refreshRequests(WidgetRef ref) {
+  ref.invalidate(familyRequestsProvider);
+  ref.invalidate(myIncomingPendingRequestsProvider);
+  ref.invalidate(myOutgoingRequestsProvider);
+}

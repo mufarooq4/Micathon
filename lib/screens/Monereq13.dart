@@ -58,7 +58,8 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
   Future<void> _submit() async {
     final approver = _approver;
     if (approver == null) {
-      setState(() => _amountError = 'Pick a parent to request from.');
+      setState(() =>
+          _amountError = 'Pick a family member to request from.');
       return;
     }
     final amount = Money.parseMajorToMinor(_amountController.text);
@@ -75,6 +76,7 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
             approverId: approver.id,
             amountMinor: amount,
           );
+      refreshRequests(ref);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -98,14 +100,23 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
     final me = ref.read(myProfileProvider).asData?.value;
     final family = ref.read(familyMembersProvider).asData?.value ??
         const <Profile>[];
-    final parents = family
-        .where((p) => p.id != me?.id && p.role == UserRole.parent)
-        .toList();
-    if (parents.isEmpty) {
+    // Any family member except the user themselves can be asked for money:
+    // parents traditionally, but also siblings (child-to-child requests).
+    // Server-side `create_request` enforces same-family + non-self.
+    final candidates =
+        family.where((p) => p.id != me?.id).toList(growable: false)
+          ..sort((a, b) {
+            // Parents first, then siblings, alphabetical within each group.
+            final ar = a.role == UserRole.parent ? 0 : 1;
+            final br = b.role == UserRole.parent ? 0 : 1;
+            if (ar != br) return ar - br;
+            return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
+          });
+    if (candidates.isEmpty) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(
-          content: Text('No parents in your family yet.'),
+          content: Text('No one else in your family yet.'),
           behavior: SnackBarBehavior.floating,
         ));
       return;
@@ -127,7 +138,7 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
                       fontWeight: FontWeight.bold,
                       color: AppColors.onSurface)),
             ),
-            for (final p in parents)
+            for (final p in candidates)
               ListTile(
                 leading: CircleAvatar(
                   backgroundColor: AvatarUtils.colorFor(p.id),
@@ -138,7 +149,8 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
                   ),
                 ),
                 title: Text(p.fullName),
-                subtitle: const Text('Parent'),
+                subtitle: Text(
+                    p.role == UserRole.parent ? 'Parent' : 'Sibling'),
                 onTap: () => Navigator.of(ctx).pop(p),
               ),
             const SizedBox(height: 12),
@@ -243,7 +255,7 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
               const Icon(Icons.unfold_more,
                   color: AppColors.onSurfaceVariant, size: 16),
             ] else
-              const Text('Pick parent',
+              const Text('Pick someone',
                   style: TextStyle(
                       color: AppColors.primary, fontWeight: FontWeight.bold)),
           ],
@@ -333,8 +345,14 @@ class _RequestMoneyScreenState extends ConsumerState<RequestMoneyScreen> {
 
 String _describeError(Object e) {
   final msg = e.toString();
-  if (msg.contains('Approver not found')) return 'That parent is not in your family.';
-  if (msg.contains('approve money requests')) return 'You can only request from a parent.';
+  if (msg.contains('Approver not found')) {
+    return 'That person is not in your family.';
+  }
+  if (msg.contains('approve money requests')) {
+    // Server still rejecting non-parent approvers — likely the
+    // `create_request` RPC hasn't been updated yet to allow siblings.
+    return 'Sibling requests aren\'t enabled on the server yet.';
+  }
   if (msg.contains('Cannot request from yourself')) {
     return 'You cannot request from yourself.';
   }

@@ -4,6 +4,7 @@ import 'package:micathon/models/money.dart';
 import 'package:micathon/models/money_request.dart';
 import 'package:micathon/models/profile.dart';
 import 'package:micathon/screens/Monereq13.dart';
+import 'package:micathon/screens/Sendmoney12.dart';
 import 'package:micathon/screens/child_activity6.dart';
 import 'package:micathon/screens/child_view_of_family_tree7.dart';
 import 'package:micathon/screens/dependent_approval11.dart';
@@ -35,6 +36,8 @@ class ChildHomeScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ChildBalanceHero(profile: profile),
+            const SizedBox(height: 32),
+            const _IncomingRequestsSection(),
             const SizedBox(height: 32),
             const _MyRequestsSection(),
             const SizedBox(height: 16),
@@ -234,27 +237,35 @@ class _ChildBalanceHero extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          onPressed: () =>
-                              _openRequestMoney(context, ref),
-                          icon: const Icon(Icons.call_received),
+                          onPressed: () => _openSendMoney(context, ref),
+                          icon: const Icon(Icons.send),
                           label: const Text(
-                            'Request Money',
+                            'Send',
                             style: TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: IconButton(
-                          onPressed: () =>
-                              _openRequestMoney(context, ref),
-                          icon: const Icon(Icons.add, color: Colors.white),
-                          padding: const EdgeInsets.all(16),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.15),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            side: BorderSide(
+                                color: Colors.white.withOpacity(0.4)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => _openRequestMoney(context, ref),
+                          icon: const Icon(Icons.call_received),
+                          label: const Text(
+                            'Request',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
                         ),
                       ),
                     ],
@@ -273,6 +284,278 @@ class _ChildBalanceHero extends ConsumerWidget {
       MaterialPageRoute(builder: (_) => const RequestMoneyScreen()),
     );
   }
+
+  void _openSendMoney(BuildContext context, WidgetRef ref) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(builder: (_) => const SendMoneyScreen()),
+    );
+  }
+}
+
+/// Pending requests directed at this child by a sibling.
+///
+/// Mirrors the parent's approval card: the same `myIncomingPendingRequestsProvider`
+/// stream is used (it just filters `approver_id == me`), so any request a sibling
+/// pointed at this user will surface here with Approve / Decline buttons. The
+/// underlying `act_on_request` RPC handles the balance transfer.
+class _IncomingRequestsSection extends ConsumerWidget {
+  const _IncomingRequestsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingAsync = ref.watch(myIncomingPendingRequestsProvider);
+    final familyAsync = ref.watch(familyMembersProvider);
+
+    return pendingAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) => _ErrorBanner(message: 'Could not load requests: $e'),
+      data: (requests) {
+        if (requests.isEmpty) return const SizedBox.shrink();
+        final family = familyAsync.asData?.value ?? const <Profile>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Pending Requests',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${requests.length} NEW',
+                    style: TextStyle(
+                      color: Colors.amber[700],
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            for (final req in requests) ...[
+              _IncomingRequestCard(
+                request: req,
+                requester: _findProfile(family, req.requesterId),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  static Profile? _findProfile(List<Profile> list, String id) {
+    for (final p in list) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+}
+
+class _IncomingRequestCard extends ConsumerStatefulWidget {
+  const _IncomingRequestCard({required this.request, required this.requester});
+
+  final MoneyRequest request;
+  final Profile? requester;
+
+  @override
+  ConsumerState<_IncomingRequestCard> createState() =>
+      _IncomingRequestCardState();
+}
+
+class _IncomingRequestCardState extends ConsumerState<_IncomingRequestCard> {
+  bool _busy = false;
+
+  Future<void> _act(String action) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(requestsRepositoryProvider).actOnRequest(
+            requestId: widget.request.id,
+            action: action,
+          );
+      refreshRequests(ref);
+      if (action == 'approve') {
+        // Approval moves money out of this child's balance into the requester's,
+        // so both balances need a fresh fetch.
+        refreshBalancesAndMembers(ref);
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(action == 'approve'
+                ? 'Request approved and money sent.'
+                : 'Request declined.'),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            content: Text(_describeIncomingError(e)),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.requester?.fullName ?? 'Family member';
+    final initial = AvatarUtils.initial(name);
+    final color = AvatarUtils.colorFor(widget.requester?.id ?? name);
+    final amountLabel = Money.format(widget.request.amountMinor);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey[100]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withOpacity(0.15),
+                radius: 20,
+                child: Text(
+                  initial,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          color: Color(0xFF0F172A),
+                          fontSize: 14,
+                          fontFamily: 'Public Sans',
+                        ),
+                        children: [
+                          TextSpan(
+                            text: name,
+                            style: const TextStyle(
+                              color: Color(0xFF006B3C),
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const TextSpan(text: ' requested '),
+                          TextSpan(
+                            text: amountLabel,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatTimestamp(widget.request.createdAt),
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF006B3C),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _busy ? null : () => _act('approve'),
+                  child: _busy
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text('Approve',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.grey[50],
+                    foregroundColor: Colors.grey[600],
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _busy ? null : () => _act('decline'),
+                  child: const Text('Decline',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _describeIncomingError(Object e) {
+  final msg = e.toString();
+  if (msg.contains('Insufficient balance')) return 'Insufficient balance.';
+  if (msg.contains('Not authenticated')) return 'Please sign in again.';
+  if (msg.contains('Cannot send')) return 'You cannot transact with yourself.';
+  return 'Something went wrong. Please try again.';
 }
 
 class _MyRequestsSection extends ConsumerWidget {
@@ -359,7 +642,8 @@ class _MyRequestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final amount = Money.format(request.amountMinor);
-    final approverName = approver?.fullName ?? 'Parent';
+    final approverName = approver?.fullName ?? 'family member';
+    final approverIsParent = approver?.role == UserRole.parent;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -443,7 +727,9 @@ class _MyRequestCard extends StatelessWidget {
                     color: Colors.amber[600], size: 16),
                 const SizedBox(width: 8),
                 Text(
-                  'Pending Parent Approval',
+                  approverIsParent
+                      ? 'Pending Parent Approval'
+                      : 'Pending Approval',
                   style: TextStyle(
                     color: Colors.amber[800],
                     fontWeight: FontWeight.bold,

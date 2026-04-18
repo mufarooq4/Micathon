@@ -379,6 +379,12 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
             requestId: widget.request.id,
             action: action,
           );
+      refreshRequests(ref);
+      if (action == 'approve') {
+        // Approving fires the same `transfer_money` RPC server-side, so
+        // both balances must be re-fetched.
+        refreshBalancesAndMembers(ref);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()

@@ -100,6 +100,7 @@ class _SendMoneyScreenState extends ConsumerState<SendMoneyScreen> {
             receiverId: recipient.id,
             amountMinor: amount,
           );
+      refreshBalancesAndMembers(ref);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()

@@ -232,6 +232,7 @@ class _RequestTileState extends ConsumerState<_RequestTile> {
             requestId: widget.request.id,
             action: 'cancel',
           );
+      refreshRequests(ref);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()

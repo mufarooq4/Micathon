@@ -16,12 +16,18 @@ final authStateChangesProvider = StreamProvider<AuthState>((ref) {
 
 /// Synchronous current session.
 ///
-/// Two-step pattern: `authStateChangesProvider` triggers re-evaluation,
-/// this provider returns `client.auth.currentSession` (the persisted source
-/// of truth). Avoids the cold-start "flash to logged out" that pure stream
-/// reads suffer from.
+/// Prefers the session attached to the most recent auth-state event because
+/// `client.auth.currentSession` can momentarily return the previous session
+/// after `signOut()` in some supabase_flutter versions — which would leave
+/// the router on the authed home with a null profile (the "3 dots after
+/// sign out" bug). At cold start, before any event has fired, we fall back
+/// to `currentSession` so a user with a persisted refresh token doesn't
+/// flash through the unauth flow.
 final sessionProvider = Provider<Session?>((ref) {
-  ref.watch(authStateChangesProvider);
-  final client = ref.watch(supabaseClientProvider);
-  return client.auth.currentSession;
+  final stateAsync = ref.watch(authStateChangesProvider);
+  return stateAsync.when(
+    data: (state) => state.session,
+    loading: () => ref.read(supabaseClientProvider).auth.currentSession,
+    error: (_, __) => null,
+  );
 });
