@@ -50,7 +50,15 @@ class ConfigureDependantScreen extends StatelessWidget {
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: emerald900),
-          onPressed: () {},
+          tooltip: 'Back',
+          onPressed: () {
+            final rootNav = Navigator.of(context, rootNavigator: true);
+            if (rootNav.canPop()) {
+              rootNav.pop();
+            } else {
+              Navigator.of(context).maybePop();
+            }
+          },
         ),
         title: const Text(
           'Kafeel',

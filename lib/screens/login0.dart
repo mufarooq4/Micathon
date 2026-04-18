@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-
-// void main() {
-//   runApp(const KafeelLoginApp());
-// }
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Color palette consistent with previous screens
 class AppColors {
@@ -15,6 +12,7 @@ class AppColors {
   static const Color onSurface = Color(0xFF1A1C1A);
   static const Color onSurfaceVariant = Color(0xFF3F4941);
   static const Color outlineVariant = Color(0xFFBEC9BE);
+  static const Color error = Color(0xFFBA1A1A);
 }
 
 class KafeelLoginApp extends StatelessWidget {
@@ -27,7 +25,7 @@ class KafeelLoginApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.background,
-        fontFamily: 'Manrope', // Ensures consistency with the rest of the app
+        fontFamily: 'Manrope',
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primary),
         useMaterial3: true,
       ),
@@ -44,40 +42,138 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  SupabaseClient get _supabase => Supabase.instance.client;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _signIn() async {
+    if (_isLoading) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      await _supabase.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      // The root `_AuthGate` listens to `onAuthStateChange` and will
+      // automatically swap to the authenticated home screen on success.
+    } on AuthException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Something went wrong. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _signUp() async {
+    if (_isLoading) return;
+    if (!_formKey.currentState!.validate()) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await _supabase.auth.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      // If email confirmation is enabled in Supabase, no session is returned.
+      if (response.session == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Account created. Please check your email to confirm before logging in.'),
+          ),
+        );
+      }
+    } on AuthException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Sign-up failed. Please try again.');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
+  String? _validateEmail(String? value) {
+    final v = value?.trim() ?? '';
+    if (v.isEmpty) return 'Email is required';
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegex.hasMatch(v)) return 'Enter a valid email';
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return 'Password is required';
+    if (value.length < 6) return 'Password must be at least 6 characters';
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 48),
-                    _buildHeader(),
-                    const SizedBox(height: 48),
-                    _buildLoginForm(),
-                    const SizedBox(height: 24),
-                    _buildLoginButton(),
-                    const SizedBox(height: 32),
-                    _buildOrDivider(),
-                    const SizedBox(height: 32),
-                    _buildFingerprintOption(),
-                    const Spacer(),
-                    _buildSignUpOption(),
-                  ],
+        child: Form(
+          key: _formKey,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24.0, vertical: 32.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 48),
+                      _buildHeader(),
+                      const SizedBox(height: 48),
+                      _buildLoginForm(),
+                      const SizedBox(height: 24),
+                      _buildLoginButton(),
+                      const SizedBox(height: 32),
+                      _buildOrDivider(),
+                      const SizedBox(height: 32),
+                      _buildFingerprintOption(),
+                      const Spacer(),
+                      _buildSignUpOption(),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -86,18 +182,17 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // App Logo/Name
-        const Text(
+      children: const [
+        Text(
           'Kafeel',
           style: TextStyle(
             color: AppColors.primary,
-            fontSize: 56, // Larger as requested
+            fontSize: 56,
             fontWeight: FontWeight.w800,
             letterSpacing: -1.5,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           'Welcome back to your family bank.',
           style: TextStyle(
@@ -119,7 +214,8 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: BoxDecoration(
             color: AppColors.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
+            border:
+                Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.02),
@@ -128,25 +224,34 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: const TextField(
+          child: TextFormField(
+            controller: _emailController,
             keyboardType: TextInputType.emailAddress,
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.email_outlined, color: AppColors.onSurfaceVariant),
+            autofillHints: const [AutofillHints.email],
+            textInputAction: TextInputAction.next,
+            validator: _validateEmail,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.email_outlined,
+                  color: AppColors.onSurfaceVariant),
               hintText: 'Email Address',
-              hintStyle: TextStyle(color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500),
+              hintStyle: TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontWeight: FontWeight.w500),
               border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Password Field
         Container(
           decoration: BoxDecoration(
             color: AppColors.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
+            border:
+                Border.all(color: AppColors.outlineVariant.withOpacity(0.5)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.02),
@@ -155,13 +260,21 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
-          child: TextField(
+          child: TextFormField(
+            controller: _passwordController,
             obscureText: _obscurePassword,
+            autofillHints: const [AutofillHints.password],
+            textInputAction: TextInputAction.done,
+            validator: _validatePassword,
+            onFieldSubmitted: (_) => _signIn(),
             decoration: InputDecoration(
-              prefixIcon: const Icon(Icons.lock_outline, color: AppColors.onSurfaceVariant),
+              prefixIcon: const Icon(Icons.lock_outline,
+                  color: AppColors.onSurfaceVariant),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  _obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
                   color: AppColors.onSurfaceVariant,
                 ),
                 onPressed: () {
@@ -171,17 +284,20 @@ class _LoginScreenState extends State<LoginScreen> {
                 },
               ),
               hintText: 'Password',
-              hintStyle: const TextStyle(color: AppColors.onSurfaceVariant, fontWeight: FontWeight.w500),
+              hintStyle: const TextStyle(
+                  color: AppColors.onSurfaceVariant,
+                  fontWeight: FontWeight.w500),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        
+
         // Forgot Password
         TextButton(
-          onPressed: () {},
+          onPressed: _isLoading ? null : _onForgotPassword,
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
             minimumSize: const Size(0, 0),
@@ -200,9 +316,28 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _onForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || _validateEmail(email) != null) {
+      _showError('Enter your email above first to reset your password.');
+      return;
+    }
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Password reset email sent to $email.')),
+      );
+    } on AuthException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Could not send reset email. Try again.');
+    }
+  }
+
   Widget _buildLoginButton() {
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: _isLoading ? null : _signIn,
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
@@ -213,21 +348,31 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         shadowColor: AppColors.primary.withOpacity(0.3),
       ),
-      child: const Text(
-        'Log In',
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 0.5,
-        ),
-      ),
+      child: _isLoading
+          ? const SizedBox(
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation(AppColors.onPrimary),
+              ),
+            )
+          : const Text(
+              'Log In',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
     );
   }
 
   Widget _buildOrDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
+        Expanded(
+            child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
@@ -240,7 +385,8 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
         ),
-        Expanded(child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
+        Expanded(
+            child: Divider(color: AppColors.outlineVariant.withOpacity(0.5))),
       ],
     );
   }
@@ -259,7 +405,8 @@ class _LoginScreenState extends State<LoginScreen> {
             decoration: BoxDecoration(
               color: AppColors.surfaceContainerLowest,
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.surfaceContainerHighest, width: 2),
+              border: Border.all(
+                  color: AppColors.surfaceContainerHighest, width: 2),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.04),
@@ -301,7 +448,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         TextButton(
-          onPressed: () {},
+          onPressed: _isLoading ? null : _signUp,
           style: TextButton.styleFrom(
             padding: EdgeInsets.zero,
             minimumSize: const Size(0, 0),
