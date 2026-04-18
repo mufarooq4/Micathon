@@ -555,7 +555,28 @@ String _describeIncomingError(Object e) {
   if (msg.contains('Insufficient balance')) return 'Insufficient balance.';
   if (msg.contains('Not authenticated')) return 'Please sign in again.';
   if (msg.contains('Cannot send')) return 'You cannot transact with yourself.';
-  return 'Something went wrong. Please try again.';
+  if (msg.contains('approve money requests') ||
+      msg.contains('only parents') ||
+      msg.contains('not authorized')) {
+    return 'Sibling approvals aren\'t enabled on the server yet.';
+  }
+  // Fall through to surface the actual Postgres / PostgrestException message
+  // so we can debug. Trim long stack-trace prefixes to keep the snackbar
+  // readable.
+  final trimmed = _extractPostgrestMessage(msg);
+  return 'Could not act on request: $trimmed';
+}
+
+/// Best-effort extraction of the human-readable bit of a
+/// PostgrestException.toString() — the format is:
+///   `PostgrestException(message: <real message>, code: <sqlstate>, …)`.
+/// If we can't find it, fall back to the first 160 chars of the raw text.
+String _extractPostgrestMessage(String raw) {
+  final m = RegExp(r'message:\s*([^,]+?)(?:,\s*(?:code|details|hint):|$)')
+      .firstMatch(raw);
+  final extracted = m?.group(1)?.trim();
+  if (extracted != null && extracted.isNotEmpty) return extracted;
+  return raw.length > 160 ? '${raw.substring(0, 160)}…' : raw;
 }
 
 class _MyRequestsSection extends ConsumerWidget {
