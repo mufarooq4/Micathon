@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/expense_category.dart';
 import '../models/transaction.dart';
 import 'realtime_utils.dart';
 
@@ -65,6 +66,31 @@ class TransactionsRepository {
         // (well within int64 but also well within 2^53) sending as int is
         // fine; .toInt() preserves the value losslessly here.
         'p_amount': amountMinor.toInt(),
+      },
+    );
+    return result as String;
+  }
+
+  /// Logs an outside-the-family expense via the `log_expense` security
+  /// definer RPC. Atomically debits the caller's balance and inserts a
+  /// row into `transactions` with `kind = 'expense'`.
+  ///
+  /// Throws [PostgrestException] on validation failure. SQLSTATEs:
+  ///   - `28000` → not authenticated
+  ///   - `22023` → bad amount / blank description / unknown category /
+  ///               insufficient balance / monthly limit exceeded (child)
+  ///   - `42501` → caller has no family
+  Future<String> logExpense({
+    required BigInt amountMinor,
+    required String description,
+    required ExpenseCategory category,
+  }) async {
+    final result = await _client.rpc(
+      'log_expense',
+      params: {
+        'p_amount': amountMinor.toInt(),
+        'p_description': description.trim(),
+        'p_category': category.serverValue,
       },
     );
     return result as String;

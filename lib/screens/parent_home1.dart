@@ -9,6 +9,7 @@ import 'package:micathon/screens/parent_view_family_tree3.dart';
 import 'package:micathon/screens/settings_screen.dart';
 import 'package:micathon/state/family_providers.dart';
 import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/widgets/add_expense_fab.dart';
 import 'package:micathon/widgets/avatar_utils.dart';
 
 /// Wrapper kept for the router. Just delegates to [HomeScreen]; the root
@@ -36,9 +37,12 @@ class HomeScreen extends ConsumerWidget {
             _BalanceHero(profile: profile),
             const SizedBox(height: 32),
             const _PendingRequestsSection(),
+            const SizedBox(height: 96),
           ],
         ),
       ),
+      floatingActionButton: const AddExpenseFab(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: _buildBottomNavBar(context),
     );
   }

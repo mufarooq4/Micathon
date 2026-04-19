@@ -5,6 +5,9 @@ import '../models/profile.dart';
 import '../models/transaction.dart';
 import 'avatar_utils.dart';
 
+const Color _expenseAvatarBg = Color(0xFFD9EEDF);
+const Color _expenseAvatarFg = Color(0xFF006B3C);
+
 /// Renders a flat list of [LedgerEntry]s grouped by date, using the same
 /// visual language as the existing Activity screens.
 class LedgerList extends StatelessWidget {
@@ -87,7 +90,8 @@ class LedgerList extends StatelessWidget {
     );
   }
 
-  Profile? _findProfile(String id) {
+  Profile? _findProfile(String? id) {
+    if (id == null) return null;
     for (final p in familyMembers) {
       if (p.id == id) return p;
     }
@@ -141,12 +145,50 @@ class _LedgerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final outgoing = entry.isOutgoingFor(currentUserId);
+
+    final Widget avatar;
+    final String title;
+    final String subtitle;
+
+    if (entry.isExpense) {
+      // External spend: no in-family counterparty. Replace the initials
+      // avatar with the category icon, and put the description on the
+      // title line with "<Category> · <time>" underneath.
+      final category = entry.categoryEnum;
+      avatar = CircleAvatar(
+        radius: 24,
+        backgroundColor: _expenseAvatarBg,
+        child: Icon(category.icon, color: _expenseAvatarFg, size: 22),
+      );
+      title = entry.description ?? 'Expense';
+      subtitle =
+          '${category.displayName} \u00B7 ${_formatTime(entry.createdAt)}';
+    } else {
+      final name = counterparty?.fullName ?? 'Family member';
+      final color = AvatarUtils.colorFor(counterparty?.id ?? name);
+      final initial = AvatarUtils.initial(name);
+      avatar = CircleAvatar(
+        radius: 24,
+        backgroundColor: color,
+        child: Text(
+          initial,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+      title = outgoing ? 'Sent to $name' : 'Received from $name';
+      subtitle = _formatTime(entry.createdAt);
+    }
+
     final amountLabel = outgoing
         ? '-${Money.format(entry.amountMinor)}'
         : '+${Money.format(entry.amountMinor)}';
-    final name = counterparty?.fullName ?? 'Family member';
-    final color = AvatarUtils.colorFor(counterparty?.id ?? name);
-    final initial = AvatarUtils.initial(name);
+
+    // Green leading stripe is reserved for incoming-money rows. Expenses
+    // are always outgoing, so they never get the stripe.
+    final showIncomingStripe = !outgoing && !entry.isExpense;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -166,30 +208,23 @@ class _LedgerRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (!outgoing) Container(width: 4, color: const Color(0xFF00502C)),
+            if (showIncomingStripe)
+              Container(width: 4, color: const Color(0xFF00502C)),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: color,
-                      child: Text(
-                        initial,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    avatar,
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            outgoing ? 'Sent to $name' : 'Received from $name',
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
@@ -198,7 +233,7 @@ class _LedgerRow extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _formatTime(entry.createdAt),
+                            subtitle,
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,

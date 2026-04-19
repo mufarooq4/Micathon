@@ -11,6 +11,7 @@ import 'package:micathon/screens/dependent_approval11.dart';
 import 'package:micathon/screens/settings_screen.dart';
 import 'package:micathon/state/family_providers.dart';
 import 'package:micathon/state/profile_providers.dart';
+import 'package:micathon/widgets/add_expense_fab.dart';
 import 'package:micathon/widgets/avatar_utils.dart';
 
 /// Wrapper kept for the router. Delegates to [ChildHomeScreen]; the root
@@ -42,10 +43,12 @@ class ChildHomeScreen extends ConsumerWidget {
             const _IncomingRequestsSection(),
             const SizedBox(height: 32),
             const _MyRequestsSection(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 96),
           ],
         ),
       ),
+      floatingActionButton: const AddExpenseFab(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: _buildBottomNavBar(context),
     );
   }

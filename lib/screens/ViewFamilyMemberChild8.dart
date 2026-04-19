@@ -1112,38 +1112,62 @@ class _SpendingRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final familyAsync = ref.watch(familyMembersProvider);
-    final receiver = familyAsync.asData?.value
-        .cast<Profile?>()
-        .firstWhere((p) => p?.id == entry.receiverId, orElse: () => null);
+    // Two cases:
+    //   * `expense` row → no in-family receiver, render the category icon
+    //     + the user-typed description ("PlayStation Network").
+    //   * `transfer` row → existing behaviour: initials avatar + "Sent to X".
+    final Widget avatar;
+    final String title;
 
-    final receiverName = receiver?.fullName ?? 'Family member';
-    final color = AvatarUtils.colorFor(entry.receiverId);
-    final initial = AvatarUtils.initial(receiverName);
+    if (entry.isExpense) {
+      final category = entry.categoryEnum;
+      avatar = CircleAvatar(
+        backgroundColor: const Color(0xFFD9EEDF),
+        radius: 22,
+        child: Icon(category.icon,
+            color: const Color(0xFF006B3C), size: 22),
+      );
+      final desc = entry.description ?? 'Expense';
+      title = '$desc \u00B7 ${category.displayName}';
+    } else {
+      final familyAsync = ref.watch(familyMembersProvider);
+      final receiverId = entry.receiverId;
+      final receiver = receiverId == null
+          ? null
+          : familyAsync.asData?.value
+              .cast<Profile?>()
+              .firstWhere((p) => p?.id == receiverId, orElse: () => null);
+      final receiverName = receiver?.fullName ?? 'Family member';
+      final colorSeed = receiverId ?? receiverName;
+      avatar = CircleAvatar(
+        backgroundColor: AvatarUtils.colorFor(colorSeed),
+        radius: 22,
+        child: Text(
+          AvatarUtils.initial(receiverName),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 16,
+          ),
+        ),
+      );
+      title = 'Sent to $receiverName';
+    }
 
     return Padding(
       padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
       child: Row(
         children: [
-          CircleAvatar(
-            backgroundColor: color,
-            radius: 22,
-            child: Text(
-              initial,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-                fontSize: 16,
-              ),
-            ),
-          ),
+          avatar,
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Sent to $receiverName',
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
