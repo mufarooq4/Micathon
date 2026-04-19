@@ -1,6 +1,6 @@
 # Kafeel — Family Finance
 
-A **family-first neobank ledger** built for parents and their dependents. Parents
+A **family-first Sandbox + ledger** built for parents and their dependents. Parents
 invite their kids into a shared "family tree", set monthly spending limits and
 weekly auto-allowances, and approve borrow/loan requests in real time. Kids see
 their balance, log outside-the-family expenses, and request money from a
