@@ -1221,14 +1221,6 @@ class _AutoTransferTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dayName = _dayName(day);
-    final dayInitial = dayName.isNotEmpty ? dayName[0] : '?';
-    // Day-of-month a child's weekly allowance will *next* land — purely
-    // decorative, so we use today's day-of-month if the day-of-week matches,
-    // otherwise compute the next occurrence. Cheap & local: no provider read.
-    final today = DateTime.now();
-    final daysUntil = (day - today.weekday % 7 + 7) % 7;
-    final nextDate = today.add(Duration(days: daysUntil == 0 ? 7 : daysUntil));
-    final dayOfMonth = nextDate.day;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1239,36 +1231,28 @@ class _AutoTransferTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          // Dark-green circular badge with a piggy-bank glyph. Replaces the
+          // older "letter + date" calendar tile because (a) the date inside it
+          // wasn't real data — just a derived "next occurrence" — and (b) a
+          // piggy-bank icon reads as "savings / allowance" at a glance.
           Container(
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _limitsGreen, width: 1.5),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  dayInitial,
-                  style: const TextStyle(
-                    color: _limitsGreen,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Text(
-                  '$dayOfMonth',
-                  style: const TextStyle(
-                    color: _limitsGreen,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    height: 1.0,
-                  ),
+              color: _limitsGreen,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: _limitsGreen.withOpacity(0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
+            ),
+            child: const Icon(
+              Icons.savings_rounded,
+              color: Colors.white,
+              size: 28,
             ),
           ),
           const SizedBox(width: 16),
