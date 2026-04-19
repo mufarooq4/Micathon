@@ -184,88 +184,76 @@ class _BalanceHero extends ConsumerWidget {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -64,
-              right: -64,
-              child: Container(
-                width: 256,
-                height: 256,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.1),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          const Positioned.fill(child: _BalanceHeroPattern()),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
                     'Current Balance',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.5,
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
                     balanceLabel,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 36,
+                      fontSize: 40,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF006B3C),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          onPressed: () => _openSendMoney(context, ref),
-                          icon: const Icon(Icons.send),
-                          label: const Text(
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF006B3C),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: () => _openSendMoney(context, ref),
+                    child: const Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_forward, size: 20),
+                          SizedBox(width: 10),
+                          Text(
                             'Send Money',
                             style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: IconButton(
-                          onPressed: () => _openSendMoney(context, ref),
-                          icon: const Icon(Icons.add, color: Colors.white),
-                          padding: const EdgeInsets.all(16),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -273,6 +261,79 @@ class _BalanceHero extends ConsumerWidget {
   void _openSendMoney(BuildContext context, WidgetRef ref) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(builder: (_) => const SendMoneyScreen()),
+    );
+  }
+}
+
+/// Translucent geometric flourish anchored to the right edge of the dark-green
+/// balance hero. Pure decoration — no interactivity, no dependency on data.
+/// Uses only `Colors.white.withOpacity(...)` to stay on-brand without
+/// introducing any new color tokens.
+class _BalanceHeroPattern extends StatelessWidget {
+  const _BalanceHeroPattern();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            top: -70,
+            right: -70,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.07),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 30,
+            right: -40,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.09),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 110,
+            right: 40,
+            child: Transform.rotate(
+              angle: 0.5,
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withOpacity(0.11),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -10,
+            right: 90,
+            child: Transform.rotate(
+              angle: -0.35,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.white.withOpacity(0.09),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -304,17 +365,17 @@ class _PendingRequestsSection extends ConsumerWidget {
                   ? const SizedBox.shrink()
                   : Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.amber[100],
-                        borderRadius: BorderRadius.circular(12),
+                        color: const Color(0xFFFFE8D6),
+                        borderRadius: BorderRadius.circular(100),
                       ),
                       child: Text(
-                        '${list.length} NEW',
-                        style: TextStyle(
-                          color: Colors.amber[700],
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                        '${list.length} New',
+                        style: const TextStyle(
+                          color: Color(0xFFB95300),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -474,11 +535,11 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const TextSpan(text: ' requested '),
+                          const TextSpan(text: ' wants '),
                           TextSpan(
                             text: amountLabel,
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold),
+                                fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -494,17 +555,43 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
+              Text(
+                amountLabel,
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF0F172A),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: Colors.grey[300]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _busy ? null : () => _act('decline'),
+                  child: const Text('Decline',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF006B3C),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -520,22 +607,6 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                         )
                       : const Text('Approve',
                           style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.grey[50],
-                    foregroundColor: Colors.grey[600],
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _busy ? null : () => _act('decline'),
-                  child: const Text('Decline',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

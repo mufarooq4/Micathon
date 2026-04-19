@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:micathon/models/money.dart';
 import 'package:micathon/models/money_request.dart';
 import 'package:micathon/models/profile.dart';
+import 'package:micathon/models/transaction.dart';
 import 'package:micathon/screens/Monereq13.dart';
 import 'package:micathon/screens/Sendmoney12.dart';
 import 'package:micathon/screens/child_activity6.dart';
@@ -37,7 +38,9 @@ class ChildHomeScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _ChildBalanceHero(profile: profile),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
+            const _RequestMoneyPill(),
+            const SizedBox(height: 24),
             const _LimitsSection(),
             const SizedBox(height: 32),
             const _IncomingRequestsSection(),
@@ -178,121 +181,201 @@ class _ChildBalanceHero extends ConsumerWidget {
         : Money.format(profile!.balanceMinor, currency: 'PKR');
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF006B3C),
+        color: _limitsGreen,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF006B3C).withOpacity(0.2),
+            color: _limitsGreen.withOpacity(0.2),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -64,
-              right: -64,
-              child: Container(
-                width: 256,
-                height: 256,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.1),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(32.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Available Balance',
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          const Positioned.fill(child: _BalanceHeroPattern()),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Current Balance',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 0.5,
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
                     balanceLabel,
+                    textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 36,
+                      fontSize: 40,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF006B3C),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: _limitsGreen,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: () => _openSendMoney(context, ref),
+                    child: const Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.arrow_forward, size: 20),
+                          SizedBox(width: 10),
+                          Text(
+                            'Send Money',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
                             ),
                           ),
-                          onPressed: () => _openSendMoney(context, ref),
-                          icon: const Icon(Icons.send),
-                          label: const Text(
-                            'Send',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(0.15),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            side: BorderSide(
-                                color: Colors.white.withOpacity(0.4)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          onPressed: () => _openRequestMoney(context, ref),
-                          icon: const Icon(Icons.call_received),
-                          label: const Text(
-                            'Request',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
-
-  void _openRequestMoney(BuildContext context, WidgetRef ref) {
-    Navigator.of(context, rootNavigator: true).push(
-      MaterialPageRoute(builder: (_) => const RequestMoneyScreen()),
     );
   }
 
   void _openSendMoney(BuildContext context, WidgetRef ref) {
     Navigator.of(context, rootNavigator: true).push(
       MaterialPageRoute(builder: (_) => const SendMoneyScreen()),
+    );
+  }
+}
+
+/// Secondary "Request money" pill rendered just below the balance hero on
+/// the child home. Replaces the old in-card Request button — this is now a
+/// quieter, demoted action so Send Money is unambiguously the primary CTA.
+class _RequestMoneyPill extends StatelessWidget {
+  const _RequestMoneyPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(builder: (_) => const RequestMoneyScreen()),
+          );
+        },
+        style: TextButton.styleFrom(
+          backgroundColor: _limitsGreenBg,
+          foregroundColor: _limitsGreen,
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(100),
+          ),
+        ),
+        icon: const Icon(Icons.call_received, size: 16),
+        label: const Text(
+          'Request money',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
+
+/// Translucent geometric flourish anchored to the right edge of the dark-green
+/// balance hero. Pure decoration — no interactivity, no dependency on data.
+/// Uses only `Colors.white.withOpacity(...)` to stay on-brand without
+/// introducing any new color tokens.
+class _BalanceHeroPattern extends StatelessWidget {
+  const _BalanceHeroPattern();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned(
+            top: -70,
+            right: -70,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.07),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 30,
+            right: -40,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.09),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 110,
+            right: 40,
+            child: Transform.rotate(
+              angle: 0.5,
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withOpacity(0.11),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -10,
+            right: 90,
+            child: Transform.rotate(
+              angle: -0.35,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(6),
+                  color: Colors.white.withOpacity(0.09),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -331,22 +414,23 @@ class _IncomingRequestsSection extends ConsumerWidget {
                     color: Color(0xFF0F172A),
                   ),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber[100],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '${requests.length} NEW',
-                    style: TextStyle(
-                      color: Colors.amber[700],
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                if (requests.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFE8D6),
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text(
+                      '${requests.length} New',
+                      style: const TextStyle(
+                        color: Color(0xFFB95300),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -471,7 +555,7 @@ class _IncomingRequestCardState extends ConsumerState<_IncomingRequestCard> {
                     RichText(
                       text: TextSpan(
                         style: const TextStyle(
-                          color: Color(0xFF0F172A),
+                          color: _limitsTextDark,
                           fontSize: 14,
                           fontFamily: 'Public Sans',
                         ),
@@ -479,15 +563,15 @@ class _IncomingRequestCardState extends ConsumerState<_IncomingRequestCard> {
                           TextSpan(
                             text: name,
                             style: const TextStyle(
-                              color: Color(0xFF006B3C),
+                              color: _limitsGreen,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const TextSpan(text: ' requested '),
+                          const TextSpan(text: ' wants '),
                           TextSpan(
                             text: amountLabel,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -503,17 +587,43 @@ class _IncomingRequestCardState extends ConsumerState<_IncomingRequestCard> {
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
+              Text(
+                amountLabel,
+                style: const TextStyle(
+                  color: _limitsTextDark,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: _limitsTextDark,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: Colors.grey[300]!),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _busy ? null : () => _act('decline'),
+                  child: const Text('Decline',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF006B3C),
+                    backgroundColor: _limitsGreen,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -529,22 +639,6 @@ class _IncomingRequestCardState extends ConsumerState<_IncomingRequestCard> {
                         )
                       : const Text('Approve',
                           style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextButton(
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.grey[50],
-                    foregroundColor: Colors.grey[600],
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _busy ? null : () => _act('decline'),
-                  child: const Text('Decline',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -853,14 +947,14 @@ class _LimitsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Spending Controls',
+          'Spending Limits',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
             color: _limitsTextDark,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         controlsAsync.when(
           loading: () => Container(
             padding: const EdgeInsets.symmetric(vertical: 32),
@@ -903,16 +997,16 @@ class _LimitsSection extends ConsumerWidget {
 
             final limitCard = hasLimit
                 ? _LimitsCardShell(
-                    child:
-                        _LimitTile(amountMinor: controls!.monthlyLimitMinor!),
+                    child: _LimitTile(
+                      amountMinor: controls!.monthlyLimitMinor!,
+                      childId: profile.id,
+                    ),
                   )
                 : null;
             final scheduleCard = hasSchedule
-                ? _LimitsCardShell(
-                    child: _AutoTransferTile(
-                      amountMinor: controls.autoTransferAmountMinor!,
-                      day: controls.autoTransferDay!,
-                    ),
+                ? _AutoTransferTile(
+                    amountMinor: controls.autoTransferAmountMinor!,
+                    day: controls.autoTransferDay!,
                   )
                 : null;
 
@@ -921,34 +1015,17 @@ class _LimitsSection extends ConsumerWidget {
               ?scheduleCard,
             ];
 
-            // Single card present → render full width, no row needed.
+            // Single card present → render full width, no spacing needed.
             if (cards.length == 1) return cards.single;
 
-            // Both present → side-by-side on wide screens, stacked on narrow.
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final sideBySide = constraints.maxWidth >= 360;
-                if (!sideBySide) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      cards[0],
-                      const SizedBox(height: 12),
-                      cards[1],
-                    ],
-                  );
-                }
-                return IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(child: cards[0]),
-                      const SizedBox(width: 12),
-                      Expanded(child: cards[1]),
-                    ],
-                  ),
-                );
-              },
+            // Both present → always stacked vertically, full width each.
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                cards[0],
+                const SizedBox(height: 12),
+                cards[1],
+              ],
             );
           },
         ),
@@ -982,96 +1059,160 @@ class _LimitsCardShell extends StatelessWidget {
   }
 }
 
-/// Shared vertical "stat card" layout so the Monthly Limit and Weekly
-/// Allowance tiles have identical visual weight when shown side-by-side.
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.icon,
-    required this.label,
-    required this.amountMinor,
-    this.footer,
-  });
+/// Monthly Limit card with a live, month-to-date progress bar.
+///
+/// The progress is computed in-widget (mirrors `_wouldExceedMonthlyLimit` in
+/// `Sendmoney12.dart` verbatim — same provider, same UTC month boundary). We
+/// deliberately do NOT extract a shared helper to keep this redesign's diff
+/// minimal and to match the prompt's instruction to "copy that pattern
+/// verbatim, do not extract it into a shared helper".
+class _LimitTile extends ConsumerWidget {
+  const _LimitTile({required this.amountMinor, required this.childId});
 
-  final IconData icon;
-  final String label;
   final BigInt amountMinor;
-  final Widget? footer;
+  final String childId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final paused = amountMinor == BigInt.zero;
+
+    // Month-to-date spend: same shape as Sendmoney12._wouldExceedMonthlyLimit.
+    final now = DateTime.now().toUtc();
+    final monthStartUtc = DateTime.utc(now.year, now.month, 1);
+    final all = ref.watch(familyTransactionsProvider).asData?.value ??
+        const <LedgerEntry>[];
+    var spent = BigInt.zero;
+    for (final t in all) {
+      if (t.senderId != childId) continue;
+      if (t.createdAt.toUtc().isBefore(monthStartUtc)) continue;
+      spent += t.amountMinor;
+    }
+
+    final double progress;
+    if (paused) {
+      progress = 1.0; // Renders as fully grey (we override the colour below).
+    } else {
+      final ratio = spent / amountMinor;
+      progress = ratio.isFinite ? ratio.clamp(0.0, 1.0) : 0.0;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
-          backgroundColor: _limitsGreenBg,
-          radius: 22,
-          child: Icon(icon, color: _limitsGreen, size: 22),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Monthly Limit',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
+                          color: _limitsTextGrey,
+                        ),
+                      ),
+                      if (paused) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '(paused)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red.shade400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      Money.format(amountMinor),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: _limitsTextDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: const [
+                  Icon(Icons.account_balance_wallet_outlined,
+                      size: 22, color: _limitsTextGrey),
+                  SizedBox(width: 6),
+                  Icon(Icons.calendar_today,
+                      size: 16, color: _limitsTextGrey),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-            color: _limitsTextGrey,
-          ),
-        ),
-        const SizedBox(height: 4),
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            Money.format(amountMinor),
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: _limitsTextDark,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            backgroundColor: const Color(0xFFEEF2EE),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              paused ? const Color(0xFFCBD5D1) : _limitsGreen,
             ),
           ),
         ),
-        if (footer != null) ...[
-          const SizedBox(height: 8),
-          footer!,
-        ],
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Spent: ${Money.format(spent)}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: _limitsTextGrey,
+              ),
+            ),
+            Text(
+              'Total: ${Money.format(amountMinor)}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: _limitsTextGrey,
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
 }
 
-class _LimitTile extends StatelessWidget {
-  const _LimitTile({required this.amountMinor});
-  final BigInt amountMinor;
-
-  @override
-  Widget build(BuildContext context) {
-    final paused = amountMinor == BigInt.zero;
-    return _StatTile(
-      icon: Icons.tune,
-      label: 'MONTHLY LIMIT',
-      amountMinor: amountMinor,
-      footer: paused
-          ? Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                '(spending paused)',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.red.shade400,
-                ),
-              ),
-            )
-          : null,
-    );
-  }
-}
-
+/// Weekly Allowance card. Renders its own light-green tinted container so it
+/// stands apart from the white Monthly Limit card visually — that's why this
+/// widget is NOT wrapped in `_LimitsCardShell` over in `_LimitsSection`.
 class _AutoTransferTile extends StatelessWidget {
   const _AutoTransferTile({required this.amountMinor, required this.day});
   final BigInt amountMinor;
@@ -1079,24 +1220,95 @@ class _AutoTransferTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StatTile(
-      icon: Icons.update,
-      label: 'WEEKLY ALLOWANCE',
-      amountMinor: amountMinor,
-      footer: Row(
+    final dayName = _dayName(day);
+    final dayInitial = dayName.isNotEmpty ? dayName[0] : '?';
+    // Day-of-month a child's weekly allowance will *next* land — purely
+    // decorative, so we use today's day-of-month if the day-of-week matches,
+    // otherwise compute the next occurrence. Cheap & local: no provider read.
+    final today = DateTime.now();
+    final daysUntil = (day - today.weekday % 7 + 7) % 7;
+    final nextDate = today.add(Duration(days: daysUntil == 0 ? 7 : daysUntil));
+    final dayOfMonth = nextDate.day;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: _limitsGreenBg,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Icon(Icons.calendar_today,
-              size: 14, color: _limitsTextGrey),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              'Every ${_dayName(day)}',
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: _limitsTextGrey,
-              ),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _limitsGreen, width: 1.5),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  dayInitial,
+                  style: const TextStyle(
+                    color: _limitsGreen,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1,
+                  ),
+                ),
+                Text(
+                  '$dayOfMonth',
+                  style: const TextStyle(
+                    color: _limitsGreen,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Weekly Allowance',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: _limitsGreen,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    Money.format(amountMinor),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: _limitsTextDark,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Scheduled for $dayName',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: _limitsTextGrey,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
